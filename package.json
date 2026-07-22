@@ -1,0 +1,41 @@
+{
+  "name": "pi-sakura-cyberdeck",
+  "version": "1.0.0",
+  "description": "Sakura Macaron theme, cyberdeck header, animated digital rain, and polished Zentui for Pi.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "pi-theme",
+    "pi-extension",
+    "tui",
+    "sakura"
+  ],
+  "files": [
+    "extensions",
+    "themes",
+    "licenses",
+    "scripts",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "pack:check": "npm pack --dry-run"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/header/index.ts",
+      "./extensions/matrix/index.ts",
+      "./extensions/zentui/index.ts"
+    ],
+    "themes": [
+      "./themes/sakura-macaron.json"
+    ]
+  }
+}
