@@ -15,7 +15,6 @@ import {
 	type ContextStyle,
 	type ExtensionStatusColorMode,
 	type ExtensionStatusPlacement,
-	type FixedEditorConfig,
 	type FooterSegmentsConfig,
 	type GitBranchConfig,
 	type GitBranchMaxLength,
@@ -33,8 +32,7 @@ import {
 } from "./config";
 import { sanitizeExtensionStatusText } from "./extension-status";
 import { isIconMode } from "./icons";
-import type { SessionLifecycle } from "./session-lifecycle";
-import { EDITOR_BORDER_STYLE, renderChromeBorder, safeThemeFg } from "./style";
+import { safeThemeFg } from "./style";
 
 const colorSourceValues: ColorSource[] = ["theme", "terminal"];
 const extensionStatusPlacementValues: ExtensionStatusPlacement[] = [
@@ -61,7 +59,7 @@ const settingsSections = [
 	"extensionSegments",
 ] as const;
 
-type ColorSettingId = "starship" | "editorMessages";
+type ColorSettingId = "starship";
 type FeatureSettingId = keyof UiFeaturesConfig;
 type FooterSegmentSettingId = keyof FooterSegmentsConfig;
 type SettingsSection = (typeof settingsSections)[number];
@@ -74,13 +72,12 @@ type LayoutSettingId =
 	| "iconMode";
 
 type SettingsCommandDeps = {
-	sessionLifecycle: SessionLifecycle;
 	getConfig: () => PolishedTuiConfig;
 	setColorSources: (patch: Partial<ColorSourcesConfig>) => void;
 	setUiFeatures: (
 		patch: Partial<UiFeaturesConfig>,
 		ctx: ExtensionContext,
-	) => { applied: boolean; reason?: string };
+	) => void;
 	setFooterSegments: (patch: Partial<FooterSegmentsConfig>) => void;
 	setFooterFormat: (value: string) => void;
 	setIconMode: (mode: IconMode) => void;
@@ -91,35 +88,25 @@ type SettingsCommandDeps = {
 	getActiveExtensionStatuses: () => ReadonlyMap<string, string>;
 	setExtensionStatusPlacement: (key: string, placement: ExtensionStatusPlacement) => void;
 	setExtensionStatusColorMode: (key: string, colorMode: ExtensionStatusColorMode) => void;
-	setFixedEditor: (patch: Partial<FixedEditorConfig>, ctx: ExtensionContext) => void;
 	requestRender: () => void;
 	settingsListTheme?: SettingsListTheme;
 };
 
 const colorSettingLabels: Record<ColorSettingId, string> = {
-	starship: "Starship/footer colors",
-	editorMessages: "Editor + previous messages",
+	starship: "Footer colors",
 };
 
 const colorSettingDescriptions: Record<ColorSettingId, string> = {
 	starship:
 		"Choose whether footer runtime/git/context colors use Pi theme tokens or terminal palette styles.",
-	editorMessages:
-		"Choose whether editor and previous user-message borders/rails use Pi theme colors or terminal palette styles.",
 };
 
 const featureSettingLabels: Record<FeatureSettingId, string> = {
-	editor: "Editor",
 	statusLine: "Status line",
-	copyFriendly: "Copy-friendly mode",
 };
 
 const featureSettingDescriptions: Record<FeatureSettingId, string> = {
-	editor:
-		"Enable or disable Zentui's custom editor, selector borders, and previous-message chrome.",
 	statusLine: "Enable or disable Zentui's custom footer/status line.",
-	copyFriendly:
-		"Hide editor and previous-message rail glyphs for cleaner native terminal selection.",
 };
 
 const footerSegmentSettingLabels: Record<FooterSegmentSettingId, string> = {
@@ -138,6 +125,16 @@ const footerSegmentSettingLabels: Record<FooterSegmentSettingId, string> = {
 	packageVersion: "Package version",
 	gitCommit: "Git commit",
 	gitMetrics: "Git line metrics",
+	sessionName: "Session name",
+	model: "Model",
+	thinking: "Thinking level",
+	turnCount: "Turn count",
+	cacheDetails: "Cache details",
+	codexUsage: "Codex subscription",
+	configCounts: "Config counts",
+	mcp: "MCP connections",
+	toolActivity: "Tool activity",
+	agentActivity: "Agent run activity",
 };
 
 const footerSegmentSettingDescriptions: Record<FooterSegmentSettingId, string> = {
@@ -160,21 +157,22 @@ const footerSegmentSettingDescriptions: Record<FooterSegmentSettingId, string> =
 		"Show the current commit hash (and optional exact-match tag). On detached HEAD this provides context the branch segment can’t. Starship `git_commit`-style; default off.",
 	gitMetrics:
 		"Show aggregate added/deleted line counts (e.g. `+12 −3`) via `git diff HEAD --numstat`. Complements the git status counts. Starship `git_metrics`-style; default off.",
+	sessionName: "Show the current Pi session name on the left.",
+	model: "Show provider/model information on the right.",
+	thinking: "Show the selected thinking level for reasoning-capable models.",
+	turnCount: "Show the current turn index on the left.",
+	cacheDetails: "Show cumulative cache read/write token totals on the right.",
+	codexUsage: "Show OpenAI Codex subscription rate-limit status when available.",
+	configCounts: "Show instruction files, skills, and installed Pi package counts.",
+	mcp: "Show parsed MCP connected/total server counts.",
+	toolActivity: "Show completed native tool counts and currently running tools.",
+	agentActivity: "Show active main agent runs (not subagent count).",
 };
 
 const directCommandSuggestions = [
-	"editor enable",
-	"editor disable",
-	"editor toggle",
 	"statusline enable",
 	"statusline disable",
 	"statusline toggle",
-	"copy-friendly enable",
-	"copy-friendly disable",
-	"copy-friendly toggle",
-	"fixed-editor enable",
-	"fixed-editor disable",
-	"fixed-editor toggle",
 	"format clear",
 	"format $cwd on $git_branch $fill $context",
 	"format $cwd( on $git_branch)($git_status)$fill($context)( | $cost)",
@@ -197,11 +195,11 @@ function isColorSource(value: string): value is ColorSource {
 }
 
 function isColorSettingId(value: string): value is ColorSettingId {
-	return value === "starship" || value === "editorMessages";
+	return value === "starship";
 }
 
 function isFeatureSettingId(value: string): value is FeatureSettingId {
-	return value === "editor" || value === "statusLine" || value === "copyFriendly";
+	return value === "statusLine";
 }
 
 function isFooterSegmentSettingId(value: string): value is FooterSegmentSettingId {
@@ -220,7 +218,17 @@ function isFooterSegmentSettingId(value: string): value is FooterSegmentSettingI
 		value === "os" ||
 		value === "packageVersion" ||
 		value === "gitCommit" ||
-		value === "gitMetrics"
+		value === "gitMetrics" ||
+		value === "sessionName" ||
+		value === "model" ||
+		value === "thinking" ||
+		value === "turnCount" ||
+		value === "cacheDetails" ||
+		value === "codexUsage" ||
+		value === "configCounts" ||
+		value === "mcp" ||
+		value === "toolActivity" ||
+		value === "agentActivity"
 	);
 }
 
@@ -264,14 +272,8 @@ function isLayoutSettingId(value: string): value is LayoutSettingId {
 	);
 }
 
-function editorMessageValue(config: PolishedTuiConfig): ColorSource | "mixed" {
-	return config.colorSources.editor === config.colorSources.userMessages
-		? config.colorSources.editor
-		: "mixed";
-}
-
-function patchForSetting(id: ColorSettingId, value: ColorSource): Partial<ColorSourcesConfig> {
-	return id === "starship" ? { starship: value } : { editor: value, userMessages: value };
+function patchForSetting(_id: ColorSettingId, value: ColorSource): Partial<ColorSourcesConfig> {
+	return { starship: value };
 }
 
 function featureValue(enabled: boolean): FeatureState {
@@ -300,16 +302,7 @@ function footerSegmentPatch(
 }
 
 function usageText(): string {
-	return 'Usage: /zentui [editor|statusline|copy-friendly] [enable|disable|toggle] or /zentui format "<template>"';
-}
-
-function featureNotification(
-	feature: FeatureSettingId,
-	value: FeatureState,
-	result: { applied: boolean; reason?: string },
-): string {
-	const base = `${featureSettingLabels[feature]}: ${value}`;
-	return result.applied ? base : `${base} (${result.reason ?? "reload Pi to apply this change"})`;
+	return 'Usage: /zentui statusline [enable|disable|toggle] or /zentui format "<template>"';
 }
 
 function parseDirectFeatureCommand(
@@ -321,13 +314,9 @@ function parseDirectFeatureCommand(
 
 	const words = normalized.split(/\s+/g).filter(Boolean);
 	const hasWord = (value: string) => words.includes(value);
-	const feature = hasWord("editor")
-		? "editor"
-		: hasWord("footer") || hasWord("statusline") || hasWord("status")
-			? "statusLine"
-			: hasWord("copyfriendly") || hasWord("copy")
-				? "copyFriendly"
-				: undefined;
+	const feature = hasWord("footer") || hasWord("statusline") || hasWord("status")
+		? "statusLine"
+		: undefined;
 	const action = hasWord("toggle")
 		? "toggle"
 		: hasWord("enable") || hasWord("enabled") || hasWord("on")
@@ -341,31 +330,6 @@ function parseDirectFeatureCommand(
 	return {
 		feature,
 		enabled: action === "toggle" ? !config.features[feature] : action === "enable",
-	};
-}
-
-function parseFixedEditorCommand(
-	args: string,
-	config: PolishedTuiConfig,
-): { enabled: boolean } | undefined {
-	const normalized = args.trim().toLowerCase().replaceAll(/[_-]+/g, " ");
-	if (!normalized) return undefined;
-
-	const words = normalized.split(/\s+/g).filter(Boolean);
-	const hasWord = (value: string) => words.includes(value);
-	if (!hasWord("fixededitor") && !(hasWord("fixed") && hasWord("editor"))) return undefined;
-
-	const action = hasWord("toggle")
-		? "toggle"
-		: hasWord("enable") || hasWord("enabled") || hasWord("on")
-			? "enable"
-			: hasWord("disable") || hasWord("disabled") || hasWord("off")
-				? "disable"
-				: undefined;
-	if (!action) return undefined;
-
-	return {
-		enabled: action === "toggle" ? !config.fixedEditor.enabled : action === "enable",
 	};
 }
 
@@ -416,49 +380,20 @@ function buildItems(
 			id: key,
 			label: colorSettingLabels[key],
 			description: colorSettingDescriptions[key],
-			currentValue: key === "starship" ? config.colorSources.starship : editorMessageValue(config),
+			currentValue: config.colorSources.starship,
 			values: colorSourceValues,
 		}));
 	}
 
 	if (section === "features") {
-		const items: SettingItem[] = (Object.keys(featureSettingLabels) as FeatureSettingId[]).map(
-			(key) => ({
-				id: key,
-				label: featureSettingLabels[key],
-				description: featureSettingDescriptions[key],
-				currentValue: featureValue(config.features[key]),
-				values: featureStateValues,
-			}),
-		);
-		items.push({
-			id: "fixedEditor",
-			label: "Fixed editor (experimental)",
-			description:
-				"Pin editor + footer at bottom while transcript scrolls. Uses alternate screen mode.",
-			currentValue: featureValue(config.fixedEditor.enabled),
+		return (Object.keys(featureSettingLabels) as FeatureSettingId[]).map((key) => ({
+			id: key,
+			label: featureSettingLabels[key],
+			description: featureSettingDescriptions[key],
+			currentValue: featureValue(config.features[key]),
 			values: featureStateValues,
-		});
-		if (config.fixedEditor.enabled) {
-			items.push({
-				id: "fixedEditorMouseScroll",
-				label: "Mouse scroll",
-				description:
-					"Scroll transcript with mouse wheel. Breaks native terminal selection and tmux scrollback.",
-				currentValue: featureValue(config.fixedEditor.mouseScroll),
-				values: featureStateValues,
-			});
-			items.push({
-				id: "fixedEditorCopyNotice",
-				label: "Copy notice",
-				description: "Show a 'Copied to clipboard' message when drag-selecting text.",
-				currentValue: featureValue(config.fixedEditor.copyNotice),
-				values: featureStateValues,
-			});
-		}
-		return items;
+		}));
 	}
-
 	if (section === "layout") {
 		return [
 			{
@@ -621,39 +556,17 @@ export function registerZentuiSettingsCommand(pi: ExtensionAPI, deps: SettingsCo
 			const directCommand = parseDirectFeatureCommand(args, deps.getConfig());
 			if (directCommand) {
 				try {
-					const result = deps.setUiFeatures(
-						{ [directCommand.feature]: directCommand.enabled },
-						ctx,
-					);
+					deps.setUiFeatures({ [directCommand.feature]: directCommand.enabled }, ctx);
 					deps.requestRender();
 					if (ctx.hasUI) {
 						ctx.ui.notify(
-							featureNotification(
-								directCommand.feature,
-								featureValue(directCommand.enabled),
-								result,
-							),
+							`${featureSettingLabels[directCommand.feature]}: ${featureValue(directCommand.enabled)}`,
 							"info",
 						);
 					}
 				} catch (error) {
 					const message = error instanceof Error ? error.message : String(error);
 					if (ctx.hasUI) ctx.ui.notify(`Could not update Zentui settings: ${message}`, "error");
-				}
-				return;
-			}
-
-			const fixedEditorCommand = parseFixedEditorCommand(args, deps.getConfig());
-			if (fixedEditorCommand) {
-				try {
-					deps.setFixedEditor({ enabled: fixedEditorCommand.enabled }, ctx);
-					deps.requestRender();
-					if (ctx.hasUI) {
-						ctx.ui.notify(`Fixed editor: ${featureValue(fixedEditorCommand.enabled)}`, "info");
-					}
-				} catch (error) {
-					const message = error instanceof Error ? error.message : String(error);
-					if (ctx.hasUI) ctx.ui.notify(`Could not update fixed editor: ${message}`, "error");
 				}
 				return;
 			}
@@ -670,9 +583,9 @@ export function registerZentuiSettingsCommand(pi: ExtensionAPI, deps: SettingsCo
 				const settingsListTheme = deps.settingsListTheme ?? getSettingsListTheme();
 				let activeSection: SettingsSection = "coloring";
 				const applyFeatureChange = (id: FeatureSettingId, newValue: FeatureState) => {
-					const result = deps.setUiFeatures(featurePatch(id, newValue), ctx);
+					deps.setUiFeatures(featurePatch(id, newValue), ctx);
 					deps.requestRender();
-					ctx.ui.notify(featureNotification(id, newValue, result), "info");
+					ctx.ui.notify(`${featureSettingLabels[id]}: ${newValue}`, "info");
 					tui.requestRender();
 				};
 				let settingsList: SettingsList;
@@ -693,23 +606,6 @@ export function registerZentuiSettingsCommand(pi: ExtensionAPI, deps: SettingsCo
 								}
 
 								if (isFeatureSettingId(id) && isFeatureState(newValue)) {
-									if (id === "editor") {
-										done(undefined);
-										// Changing the editor component while ctx.ui.custom() is active clears the
-										// custom component without resolving it, leaving Pi's input loop stuck.
-										// Close the settings UI first, then apply the editor swap on the next tick.
-										const applyEditorChange = () => {
-											try {
-												applyFeatureChange(id, newValue);
-											} catch (error) {
-												const message = error instanceof Error ? error.message : String(error);
-												ctx.ui.notify(`Could not update Zentui settings: ${message}`, "error");
-											}
-										};
-										deps.sessionLifecycle.defer(applyEditorChange);
-										return;
-									}
-
 									applyFeatureChange(id, newValue);
 									settingsList.updateValue(id, newValue);
 									return;
@@ -786,31 +682,6 @@ export function registerZentuiSettingsCommand(pi: ExtensionAPI, deps: SettingsCo
 									return;
 								}
 
-								if (id === "fixedEditor" && isFeatureState(newValue)) {
-									deps.setFixedEditor({ enabled: newValue === "enabled" }, ctx);
-									settingsList = makeSettingsList();
-									deps.requestRender();
-									ctx.ui.notify(`Fixed editor: ${newValue}`, "info");
-									tui.requestRender();
-									return;
-								}
-								if (id === "fixedEditorMouseScroll" && isFeatureState(newValue)) {
-									deps.setFixedEditor({ mouseScroll: newValue === "enabled" }, ctx);
-									settingsList.updateValue(id, newValue);
-									deps.requestRender();
-									ctx.ui.notify(`Mouse scroll: ${newValue}`, "info");
-									tui.requestRender();
-									return;
-								}
-								if (id === "fixedEditorCopyNotice" && isFeatureState(newValue)) {
-									deps.setFixedEditor({ copyNotice: newValue === "enabled" }, ctx);
-									settingsList.updateValue(id, newValue);
-									deps.requestRender();
-									ctx.ui.notify(`Copy notice: ${newValue}`, "info");
-									tui.requestRender();
-									return;
-								}
-
 								const thirdPartyStatusSetting = thirdPartyStatusSettingFromId(id);
 								if (
 									thirdPartyStatusSetting?.kind === "placement" &&
@@ -859,13 +730,7 @@ export function registerZentuiSettingsCommand(pi: ExtensionAPI, deps: SettingsCo
 
 				return {
 					render(width: number) {
-						const colorSource = deps.getConfig().colorSources.editor;
-						const border = renderChromeBorder(
-							theme,
-							colorSource,
-							EDITOR_BORDER_STYLE,
-							"─".repeat(Math.max(0, width)),
-						);
+						const border = safeThemeFg(theme, "borderMuted", "─".repeat(Math.max(0, width)));
 						return [
 							truncateToWidth(border, width, ""),
 							truncateToWidth(formatSectionTabs(activeSection, theme), width, ""),

@@ -14,6 +14,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import { stripVTControlCharacters } from "node:util";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
 	ICON_GLYPH_KEYS,
@@ -54,14 +55,10 @@ export type GitBranchConfig = {
 
 export type ColorSourcesConfig = {
 	starship: ColorSource;
-	editor: ColorSource;
-	userMessages: ColorSource;
 };
 
 export type UiFeaturesConfig = {
-	editor: boolean;
 	statusLine: boolean;
-	copyFriendly: boolean;
 };
 
 export type FooterSegmentsConfig = {
@@ -80,13 +77,18 @@ export type FooterSegmentsConfig = {
 	time: boolean;
 	os: boolean;
 	packageVersion: boolean;
+	sessionName: boolean;
+	model: boolean;
+	thinking: boolean;
+	turnCount: boolean;
+	cacheDetails: boolean;
+	codexUsage: boolean;
+	configCounts: boolean;
+	mcp: boolean;
+	toolActivity: boolean;
+	agentActivity: boolean;
 };
 
-export type FixedEditorConfig = {
-	enabled: boolean;
-	mouseScroll: boolean;
-	copyNotice: boolean;
-};
 
 export type ExtensionStatusPlacement = "off" | "left" | "middle" | "right";
 export type ExtensionStatusColorMode = "zentui" | "original";
@@ -150,17 +152,7 @@ export type PolishedTuiConfig = {
 		username: ColorSpec;
 		time: ColorSpec;
 		os: ColorSpec;
-		editorAccent?: ColorSpec;
-		editorPrompt?: ColorSpec;
-		editorBorder?: ColorSpec;
-		editorModel?: ColorSpec;
-		editorProvider?: ColorSpec;
-		editorThinking?: ColorSpec;
-		editorThinkingMinimal?: ColorSpec;
-		editorThinkingLow?: ColorSpec;
-		editorThinkingMedium?: ColorSpec;
-		editorThinkingHigh?: ColorSpec;
-		editorThinkingXhigh?: ColorSpec;
+		muted: ColorSpec;
 	};
 	colorSources: ColorSourcesConfig;
 	features: UiFeaturesConfig;
@@ -168,7 +160,6 @@ export type PolishedTuiConfig = {
 	gitCommit: GitCommitConfig;
 	gitMetrics: GitMetricsConfig;
 	extensionStatuses: ExtensionStatusesConfig;
-	fixedEditor: FixedEditorConfig;
 };
 
 /**
@@ -195,6 +186,25 @@ export const FOOTER_FORMAT_VARIABLES = [
 	"git_metrics",
 	"git_added",
 	"git_deleted",
+	"session_name",
+	"model",
+	"provider",
+	"model_id",
+	"thinking",
+	"turn",
+	"cache_read",
+	"cache_write",
+	"cache_hit",
+	"codex_usage",
+	"instruction_files",
+	"agents_files",
+	"claude_files",
+	"skills",
+	"extensions",
+	"mcp",
+	"tool_counts",
+	"running_tools",
+	"active_agents",
 	"sep",
 ] as const;
 
@@ -210,25 +220,28 @@ export const FOOTER_FORMAT_ALIASES: Record<string, string> = {
 	commit: "git_commit",
 	tag: "git_tag",
 	duration: "session_duration",
+	session: "session_name",
+	thinking_level: "thinking",
+	turn_count: "turn",
+	codex: "codex_usage",
+	tools: "tool_counts",
+	agents: "active_agents",
 	separator: "sep",
 };
 
 export const configPath = join(getAgentDir(), "sakura-cyberdeck-zentui.json");
 
 export const defaultConfig: PolishedTuiConfig = {
-	projectRefreshIntervalMs: 60_000,
-	footerFormat:
-		"$os  $cwd(  $git_branch)( $git_status)(  $runtime)$fill($context)(  $tokens)(  $cost)",
+	projectRefreshIntervalMs: DEFAULT_PROJECT_REFRESH_INTERVAL_MS,
+	footerFormat: "",
 	separator: "chevron",
 	contextStyle: "text+gauge",
 	contextThresholds: { warning: 70, error: 90 },
 	pathDisplay: { mode: "basename", depth: 0 },
 	gitBranch: { maxLength: 30 },
 	icons: {
-		mode: "nerd",
+		mode: "auto",
 		...NERD_DEFAULT_ICONS,
-		rail: "▐",
-		editorPrompt: "󰜴",
 	},
 	colors: {
 		cwd: "bold #F2A7C6",
@@ -250,27 +263,13 @@ export const defaultConfig: PolishedTuiConfig = {
 		username: "#F3D98B",
 		time: "#F3D98B",
 		os: "#F7EEF8",
-		editorAccent: "bold #F2A7C6",
-		editorPrompt: "bold #F2A7C6",
-		editorBorder: "sakura-macaron-gradient",
-		editorModel: "bold #F2A7C6",
-		editorProvider: "#B8BEDD",
-		editorThinking: "#C7B8F5",
-		editorThinkingMinimal: "#716879",
-		editorThinkingLow: "#9FD3F2",
-		editorThinkingMedium: "#EFC3E6",
-		editorThinkingHigh: "bold #F2A7C6",
-		editorThinkingXhigh: "bold #C7B8F5",
+		muted: "#A99BAE",
 	},
 	colorSources: {
 		starship: "terminal",
-		editor: "terminal",
-		userMessages: "theme",
 	},
 	features: {
-		editor: true,
 		statusLine: true,
-		copyFriendly: false,
 	},
 	footerSegments: {
 		cwd: true,
@@ -288,6 +287,16 @@ export const defaultConfig: PolishedTuiConfig = {
 		packageVersion: false,
 		gitCommit: false,
 		gitMetrics: false,
+		sessionName: true,
+		model: true,
+		thinking: true,
+		turnCount: true,
+		cacheDetails: true,
+		codexUsage: true,
+		configCounts: false,
+		mcp: true,
+		toolActivity: true,
+		agentActivity: true,
 	},
 	gitCommit: {
 		hashLength: 7,
@@ -306,11 +315,6 @@ export const defaultConfig: PolishedTuiConfig = {
 			"xai-usage": "right",
 		},
 		colorModes: {},
-	},
-	fixedEditor: {
-		enabled: true,
-		mouseScroll: true,
-		copyNotice: true,
 	},
 };
 
@@ -401,9 +405,14 @@ function stringValue(record: Record<string, unknown>, key: string): string | und
 	return typeof value === "string" ? value : undefined;
 }
 
+function sanitizeConfigText(value: string, maxLength: number): string {
+	return stripVTControlCharacters(value.slice(0, maxLength * 4))
+		.replace(/[\u0000-\u001f\u007f-\u009f]/g, "")
+		.slice(0, maxLength);
+}
+
 function colorValue(record: Record<string, unknown>, key: string): string | undefined {
 	const value = stringValue(record, key);
-	if (key === "editorBorder" && value === "sakura-macaron-gradient") return value;
 	return value !== undefined && isSupportedColorSpec(value) ? value : undefined;
 }
 
@@ -442,7 +451,7 @@ function normalizeIconOverrides(record: Record<string, unknown>): Partial<IconGl
 	return Object.fromEntries(
 		ICON_GLYPH_KEYS.flatMap((key) => {
 			const value = stringValue(record, key);
-			return value === undefined ? [] : [[key, value]];
+			return value === undefined ? [] : [[key, sanitizeConfigText(value, 64)]];
 		}),
 	) as Partial<IconGlyphs>;
 }
@@ -468,34 +477,16 @@ function normalizeColors(record: Record<string, unknown>): Partial<PolishedTuiCo
 		username: colorValue(record, "username"),
 		time: colorValue(record, "time"),
 		os: colorValue(record, "os"),
-		editorAccent: colorValue(record, "editorAccent"),
-		editorPrompt: colorValue(record, "editorPrompt"),
-		editorBorder: colorValue(record, "editorBorder"),
-		editorModel: colorValue(record, "editorModel"),
-		editorProvider: colorValue(record, "editorProvider"),
-		editorThinking: colorValue(record, "editorThinking"),
-		editorThinkingMinimal: colorValue(record, "editorThinkingMinimal"),
-		editorThinkingLow: colorValue(record, "editorThinkingLow"),
-		editorThinkingMedium: colorValue(record, "editorThinkingMedium"),
-		editorThinkingHigh: colorValue(record, "editorThinkingHigh"),
-		editorThinkingXhigh: colorValue(record, "editorThinkingXhigh"),
+		muted: colorValue(record, "muted"),
 	});
 }
 
 function normalizeColorSources(record: Record<string, unknown>): ColorSourcesConfig {
-	return {
-		starship: colorSourceValue(record, "starship"),
-		editor: colorSourceValue(record, "editor"),
-		userMessages: colorSourceValue(record, "userMessages"),
-	};
+	return { starship: colorSourceValue(record, "starship") };
 }
 
 function normalizeUiFeatures(record: Record<string, unknown>): UiFeaturesConfig {
-	return {
-		editor: booleanValue(record, "editor"),
-		statusLine: booleanValue(record, "statusLine"),
-		copyFriendly: booleanValue(record, "copyFriendly"),
-	};
+	return { statusLine: booleanValue(record, "statusLine") };
 }
 
 function normalizeFooterSegments(record: Record<string, unknown>): FooterSegmentsConfig {
@@ -515,6 +506,16 @@ function normalizeFooterSegments(record: Record<string, unknown>): FooterSegment
 		packageVersion: footerSegmentValue(record, "packageVersion"),
 		gitCommit: footerSegmentValue(record, "gitCommit"),
 		gitMetrics: footerSegmentValue(record, "gitMetrics"),
+		sessionName: footerSegmentValue(record, "sessionName"),
+		model: footerSegmentValue(record, "model"),
+		thinking: footerSegmentValue(record, "thinking"),
+		turnCount: footerSegmentValue(record, "turnCount"),
+		cacheDetails: footerSegmentValue(record, "cacheDetails"),
+		codexUsage: footerSegmentValue(record, "codexUsage"),
+		configCounts: footerSegmentValue(record, "configCounts"),
+		mcp: footerSegmentValue(record, "mcp"),
+		toolActivity: footerSegmentValue(record, "toolActivity"),
+		agentActivity: footerSegmentValue(record, "agentActivity"),
 	};
 }
 
@@ -586,27 +587,12 @@ function normalizeExtensionStatuses(record: Record<string, unknown>): ExtensionS
 	};
 }
 
-function normalizeFixedEditorConfig(record: Record<string, unknown>): FixedEditorConfig {
-	return {
-		enabled:
-			typeof record.enabled === "boolean" ? record.enabled : defaultConfig.fixedEditor.enabled,
-		mouseScroll:
-			typeof record.mouseScroll === "boolean"
-				? record.mouseScroll
-				: defaultConfig.fixedEditor.mouseScroll,
-		copyNotice:
-			typeof record.copyNotice === "boolean"
-				? record.copyNotice
-				: defaultConfig.fixedEditor.copyNotice,
-	};
-}
-
 function isColorSourceKey(value: string): value is keyof ColorSourcesConfig {
-	return value === "starship" || value === "editor" || value === "userMessages";
+	return value === "starship";
 }
 
 function isUiFeatureKey(value: string): value is keyof UiFeaturesConfig {
-	return value === "editor" || value === "statusLine" || value === "copyFriendly";
+	return value === "statusLine";
 }
 
 function isFooterSegmentKey(value: string): value is keyof FooterSegmentsConfig {
@@ -625,7 +611,17 @@ function isFooterSegmentKey(value: string): value is keyof FooterSegmentsConfig 
 		value === "os" ||
 		value === "packageVersion" ||
 		value === "gitCommit" ||
-		value === "gitMetrics"
+		value === "gitMetrics" ||
+		value === "sessionName" ||
+		value === "model" ||
+		value === "thinking" ||
+		value === "turnCount" ||
+		value === "cacheDetails" ||
+		value === "codexUsage" ||
+		value === "configCounts" ||
+		value === "mcp" ||
+		value === "toolActivity" ||
+		value === "agentActivity"
 	);
 }
 
@@ -769,12 +765,9 @@ export function mergeConfig(parsed: unknown): PolishedTuiConfig {
 		? normalizeGitMetricsConfig(config.gitMetrics as Record<string, unknown>)
 		: defaultConfig.gitMetrics;
 	const gitBranch = parseGitBranchConfig(config.gitBranch);
-	const fixedEditor = isRecord(config.fixedEditor)
-		? normalizeFixedEditorConfig(config.fixedEditor as Record<string, unknown>)
-		: defaultConfig.fixedEditor;
 	return {
 		projectRefreshIntervalMs: parseProjectRefreshIntervalMs(config.projectRefreshIntervalMs),
-		footerFormat: stringValue(config, "footerFormat") ?? "",
+		footerFormat: sanitizeConfigText(stringValue(config, "footerFormat") ?? "", 4096),
 		separator: parseSeparatorStyle(config.separator),
 		contextStyle: parseContextStyle(config.contextStyle),
 		contextThresholds: parseContextThresholds(config.contextThresholds),
@@ -795,7 +788,6 @@ export function mergeConfig(parsed: unknown): PolishedTuiConfig {
 			placements: { ...extensionStatuses.placements },
 			colorModes: { ...extensionStatuses.colorModes },
 		},
-		fixedEditor,
 	};
 }
 
@@ -869,7 +861,7 @@ export function saveFooterSegmentsPatch(
 
 export function saveFooterFormatPatch(value: string, path = configPath): PolishedTuiConfig {
 	return mutateConfig(path, (record) => {
-		record.footerFormat = typeof value === "string" ? value : "";
+		record.footerFormat = typeof value === "string" ? sanitizeConfigText(value, 4096) : "";
 	});
 }
 
@@ -991,23 +983,6 @@ export function saveExtensionStatusColorMode(
 		record.extensionStatuses = {
 			...existingExtensionStatuses,
 			colorModes: existingColorModes,
-		};
-	});
-}
-
-export function saveFixedEditorPatch(
-	patch: Partial<FixedEditorConfig>,
-	path = configPath,
-): PolishedTuiConfig {
-	return mutateConfig(path, (record) => {
-		const existing = isRecord(record.fixedEditor)
-			? { ...(record.fixedEditor as Record<string, unknown>) }
-			: {};
-		record.fixedEditor = {
-			...existing,
-			...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
-			...(patch.mouseScroll !== undefined ? { mouseScroll: patch.mouseScroll } : {}),
-			...(patch.copyNotice !== undefined ? { copyNotice: patch.copyNotice } : {}),
 		};
 	});
 }

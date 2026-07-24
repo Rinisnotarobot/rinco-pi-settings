@@ -2,12 +2,17 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { PolishedTuiConfig, SeparatorStyle } from "./config";
 import { FOOTER_FORMAT_ALIASES } from "./config";
-import { collectExtensionStatusSegments, type ExtensionStatusSegment } from "./extension-status";
+import {
+	collectExtensionStatusSegments,
+	sanitizeExtensionStatusText,
+	type ExtensionStatusSegment,
+} from "./extension-status";
 import { parseFooterFormat, renderFormatSplit, stripOrphanSeparators } from "./footer-format";
 import {
 	buildContextDisplayLabel,
 	buildSessionDurationLabel,
 	contextColorTier,
+	formatCount,
 	formatCwdLabel,
 	formatGitBranchText,
 	formatGitCommitSegment,
@@ -20,8 +25,10 @@ import {
 } from "./format";
 import { resolveRuntimeSymbol } from "./icons";
 import type { LiveContextOverride } from "./live-context";
+import { parseMcpStatus } from "./mcp-status";
 import type { FooterState } from "./state";
 import { renderStyleForSource } from "./style";
+import { getTelemetryStats } from "./telemetry";
 
 const separatorText: Record<SeparatorStyle, string> = {
 	pipe: " | ",
@@ -29,6 +36,11 @@ const separatorText: Record<SeparatorStyle, string> = {
 	chevron: " › ",
 	none: " ",
 };
+
+function safeStatusText(value: string | null | undefined, maxLength = 256): string {
+	if (!value) return "";
+	return sanitizeExtensionStatusText(value.slice(0, maxLength * 4)).slice(0, maxLength);
+}
 
 function joinStatusTexts(statusTexts: string[], separator: string): string {
 	return statusTexts.filter(Boolean).join(separator);
@@ -69,11 +81,45 @@ function prependStatusArea(base: string, statusText: string, separator: string):
 function composeBuiltInFooterContent(left: string, right: string, innerWidth: number): string {
 	const leftWidth = visibleWidth(left);
 	const rightWidth = visibleWidth(right);
-	return leftWidth >= innerWidth
-		? truncateToWidth(left, innerWidth, "")
-		: leftWidth + 1 + rightWidth <= innerWidth
-			? `${left}${" ".repeat(innerWidth - leftWidth - rightWidth)}${right}`
-			: truncateToWidth(left, innerWidth, "");
+	if (!right) return truncateToWidth(left, innerWidth, "");
+	if (!left) {
+		const fittedRight = truncateToWidth(right, innerWidth, "");
+		return `${" ".repeat(Math.max(0, innerWidth - visibleWidth(fittedRight)))}${fittedRight}`;
+	}
+	if (leftWidth + 1 + rightWidth <= innerWidth) {
+		return `${left}${" ".repeat(innerWidth - leftWidth - rightWidth)}${right}`;
+	}
+
+	const gap = innerWidth > 1 ? 1 : 0;
+	const available = Math.max(0, innerWidth - gap);
+	let rightBudget = Math.min(rightWidth, Math.max(0, Math.floor(available * 0.48)));
+	let leftBudget = Math.min(leftWidth, Math.max(0, available - rightBudget));
+	let remaining = Math.max(0, available - leftBudget - rightBudget);
+	const leftExtra = Math.min(remaining, Math.max(0, leftWidth - leftBudget));
+	leftBudget += leftExtra;
+	remaining -= leftExtra;
+	rightBudget += Math.min(remaining, Math.max(0, rightWidth - rightBudget));
+	let fittedLeft = truncateToWidth(left, leftBudget, "");
+	let fittedRight = truncateToWidth(right, rightBudget, "");
+	for (let pass = 0; pass < 2; pass += 1) {
+		let spare = Math.max(
+			0,
+			available - visibleWidth(fittedLeft) - visibleWidth(fittedRight),
+		);
+		if (spare === 0) break;
+		if (visibleWidth(fittedLeft) < leftWidth) {
+			fittedLeft = truncateToWidth(left, visibleWidth(fittedLeft) + spare, "");
+			spare = Math.max(
+				0,
+				available - visibleWidth(fittedLeft) - visibleWidth(fittedRight),
+			);
+		}
+		if (spare > 0 && visibleWidth(fittedRight) < rightWidth) {
+			fittedRight = truncateToWidth(right, visibleWidth(fittedRight) + spare, "");
+		}
+	}
+	const padding = Math.max(0, innerWidth - visibleWidth(fittedLeft) - visibleWidth(fittedRight));
+	return `${fittedLeft}${" ".repeat(padding)}${fittedRight}`;
 }
 
 function composeFooterContent(
@@ -94,7 +140,13 @@ function composeFooterContent(
 	}
 
 	const available = Math.max(0, innerWidth - builtInLeftWidth - builtInRightWidth - minimumGap);
-	let remaining = available;
+	const reservedMiddle = fitStatusTexts(
+		extensionMiddle,
+		Math.max(0, Math.floor(available * 0.4)),
+		separator,
+	);
+	const sideAvailable = Math.max(0, available - visibleWidth(reservedMiddle));
+	let remaining = sideAvailable;
 	const leftConnectorWidth = builtInLeft && extensionLeft.length > 0 ? visibleWidth(separator) : 0;
 	const rightConnectorWidth =
 		builtInRight && extensionRight.length > 0 ? visibleWidth(separator) : 0;
@@ -102,7 +154,7 @@ function composeFooterContent(
 	let rightStatus = "";
 
 	if (extensionLeft.length > 0 && extensionRight.length > 0) {
-		const leftBudget = Math.max(0, Math.floor(available / 2) - leftConnectorWidth);
+		const leftBudget = Math.max(0, Math.floor(sideAvailable / 2) - leftConnectorWidth);
 		leftStatus = fitStatusTexts(extensionLeft, leftBudget, separator);
 		remaining -= leftStatus ? leftConnectorWidth + visibleWidth(leftStatus) : 0;
 
@@ -120,14 +172,14 @@ function composeFooterContent(
 	} else if (extensionLeft.length > 0) {
 		leftStatus = fitStatusTexts(
 			extensionLeft,
-			Math.max(0, available - leftConnectorWidth),
+			Math.max(0, sideAvailable - leftConnectorWidth),
 			separator,
 		);
 		remaining -= leftStatus ? leftConnectorWidth + visibleWidth(leftStatus) : 0;
 	} else if (extensionRight.length > 0) {
 		rightStatus = fitStatusTexts(
 			extensionRight,
-			Math.max(0, available - rightConnectorWidth),
+			Math.max(0, sideAvailable - rightConnectorWidth),
 			separator,
 		);
 		remaining -= rightStatus ? rightConnectorWidth + visibleWidth(rightStatus) : 0;
@@ -179,6 +231,30 @@ export function installFooter(
 				const config = getConfig();
 				const colorSource = config.colorSources.starship;
 				const iconMode = config.icons.mode;
+				const rawExtensionStatuses = footerData.getExtensionStatuses();
+				const mcpStatus = parseMcpStatus(rawExtensionStatuses.get("mcp"));
+				const safeCwd = safeStatusText(ctx.cwd, 1024);
+				const safeRuntime = state.runtime
+					? {
+							...state.runtime,
+							name: safeStatusText(state.runtime.name, 64),
+							symbol: safeStatusText(state.runtime.symbol, 32),
+							version: safeStatusText(state.runtime.version, 128) || undefined,
+						}
+					: undefined;
+				const safePackageVersion = state.packageVersion
+					? {
+							ecosystem: safeStatusText(state.packageVersion.ecosystem, 64),
+							version: safeStatusText(state.packageVersion.version, 160),
+						}
+					: undefined;
+				const safeCommit = state.commit
+					? {
+							...state.commit,
+							oid: safeStatusText(state.commit.oid, 64) || null,
+							tag: safeStatusText(state.commit.tag, 160) || null,
+						}
+					: undefined;
 				const separator = renderStyleForSource(
 					theme,
 					colorSource,
@@ -190,12 +266,12 @@ export function installFooter(
 					theme,
 					colorSource,
 					config.colors.cwd,
-					formatCwdLabel(ctx.cwd, config.icons.cwd, {
+					formatCwdLabel(safeCwd, config.icons.cwd, {
 						mode: config.pathDisplay.mode,
 						depth: config.pathDisplay.depth,
 					}),
 				);
-				const branch = state.branch;
+				const branch = safeStatusText(state.branch, 256) || undefined;
 				const branchText = branch
 					? formatGitBranchText(branch, config.gitBranch.maxLength)
 					: undefined;
@@ -256,8 +332,82 @@ export function installFooter(
 				})();
 				const statusBlock =
 					allStatus || aheadBehind ? gitStatusColor(`[${allStatus}${aheadBehind}]`) : "";
-				const gitStateLabel = state.gitStateLabel ?? "";
+				const gitStateLabel = safeStatusText(state.gitStateLabel, 64);
 				const gitStateBlock = gitStateLabel ? gitStatusColor(gitStateLabel) : "";
+				const statusStyle = (style: string, text: string) =>
+					text ? renderStyleForSource(theme, colorSource, style, text) : "";
+				const sessionName = safeStatusText(state.telemetry.sessionName, 256);
+				const sessionNameLabel = statusStyle(config.colors.gitBranch, sessionName ? `◈ ${sessionName}` : "");
+				const providerId = safeStatusText(ctx.model?.provider, 128);
+				const modelId = safeStatusText(ctx.model?.id, 256);
+				const modelText = providerId && modelId ? `${providerId}/${modelId}` : modelId || providerId;
+				const modelStatusLabel = statusStyle(config.colors.runtimePrefix, modelText ? `λ ${modelText}` : "");
+				const thinkingLabel = state.telemetry.modelSupportsReasoning
+					? statusStyle(
+							config.colors.extensionStatus,
+							`◈ ${state.telemetry.thinkingLevel === "off" ? "thinking off" : state.telemetry.thinkingLevel}`,
+						)
+					: "";
+				const turnLabel =
+					state.telemetry.turnIndex > 0
+						? statusStyle(config.colors.extensionStatus, `↺×${state.telemetry.turnIndex}`)
+						: "";
+				const cacheReadLabel = state.usageTotals.cacheRead > 0
+					? statusStyle(config.colors.tokens, `R${formatCount(state.usageTotals.cacheRead)}`)
+					: "";
+				const cacheWriteLabel = state.usageTotals.cacheWrite > 0
+					? statusStyle(config.colors.tokens, `W${formatCount(state.usageTotals.cacheWrite)}`)
+					: "";
+				const cacheHitLabel = state.usageTotals.latestCacheHitRate !== undefined
+					? statusStyle(config.colors.contextNormal, `CH${state.usageTotals.latestCacheHitRate.toFixed(1)}%`)
+					: "";
+				const cacheDetailsLabel = [cacheReadLabel, cacheWriteLabel].filter(Boolean).join(" ");
+				const codexStyle = state.codexUsageStatus === "checking"
+					? config.colors.contextWarning
+					: state.codexUsageStatus === "usage error"
+						? config.colors.contextError
+						: config.colors.contextNormal;
+				const codexUsageLabel = statusStyle(
+					codexStyle,
+					state.codexUsageStatus ? `◉ ${safeStatusText(state.codexUsageStatus, 256)}` : "",
+				);
+				const instructionFilesLabel = state.configCounts.instructionFiles.total > 0
+					? statusStyle(config.colors.runtimePrefix, `※×${state.configCounts.instructionFiles.total}`)
+					: "";
+				const agentsFilesLabel = state.configCounts.instructionFiles.agentsMd > 0
+					? statusStyle(config.colors.runtimePrefix, String(state.configCounts.instructionFiles.agentsMd))
+					: "";
+				const claudeFilesLabel = state.configCounts.instructionFiles.claudeMd > 0
+					? statusStyle(config.colors.runtimePrefix, String(state.configCounts.instructionFiles.claudeMd))
+					: "";
+				const skillsLabel = state.configCounts.skills > 0
+					? statusStyle(config.colors.extensionStatus, `★×${state.configCounts.skills}`)
+					: "";
+				const extensionsLabel = state.configCounts.packages > 0
+					? statusStyle(config.colors.sessionDuration, `◈×${state.configCounts.packages}`)
+					: "";
+				const configCountsLabel = [instructionFilesLabel, skillsLabel, extensionsLabel]
+					.filter(Boolean)
+					.join(" ");
+				const mcpLabel = mcpStatus
+					? statusStyle(config.colors.gitStatus, `⊕ ${mcpStatus.connected}/${mcpStatus.total}`)
+					: "";
+				const telemetryStats = getTelemetryStats(state.telemetry);
+				const toolCountsText = Object.entries(telemetryStats.completedToolCounts)
+					.filter(([, count]) => count > 0)
+					.map(([tool, count]) => `${tool}${count > 1 ? `×${count}` : ""}`)
+					.join(" ");
+				const toolCountsLabel = statusStyle(config.colors.contextNormal, toolCountsText);
+				const runningToolsText = telemetryStats.recentRunningTools
+					.map((tool) => {
+						const target = tool.target ? `:${truncateToWidth(tool.target, 18, "…")}` : "";
+						return `↻ ${tool.name}${target}(${buildSessionDurationLabel(tool.startTime)})`;
+					})
+					.join(" ");
+				const runningToolsLabel = statusStyle(config.colors.contextWarning, runningToolsText);
+				const activeAgentsLabel = telemetryStats.activeAgentRuns > 0
+					? statusStyle(config.colors.extensionStatus, `↻ agent×${telemetryStats.activeAgentRuns}`)
+					: statusStyle(config.colors.muted, "agent idle");
 				const renderVariable = (name: string): string => {
 					const canonical = FOOTER_FORMAT_ALIASES[name] ?? name;
 					switch (canonical) {
@@ -274,14 +424,14 @@ export function installFooter(
 						case "git_state":
 							return gitStateBlock;
 						case "runtime": {
-							if (!state.runtime) return "";
+							if (!safeRuntime) return "";
 							const symbol = resolveRuntimeSymbol(
-								state.runtime.name,
-								state.runtime.symbol,
+								safeRuntime.name,
+								safeRuntime.symbol,
 								iconMode,
 							);
-							const label = state.runtime.version ? `${symbol} ${state.runtime.version}` : symbol;
-							return renderStyleForSource(theme, colorSource, state.runtime.style, label);
+							const label = safeRuntime.version ? `${symbol} ${safeRuntime.version}` : symbol;
+							return renderStyleForSource(theme, colorSource, safeRuntime.style, label);
 						}
 						case "session_duration":
 							return state.sessionStartEpoch
@@ -327,19 +477,19 @@ export function installFooter(
 						case "package":
 							return formatPackageVersionSegment(
 								theme,
-								state.packageVersion,
+								safePackageVersion,
 								colorSource,
 								iconMode,
 								config.icons.package,
 								config.colors.packageVersion,
 							);
 						case "package_version":
-							return state.packageVersion?.version
+							return safePackageVersion?.version
 								? renderStyleForSource(
 										theme,
 										colorSource,
 										config.colors.packageVersion,
-										state.packageVersion.version,
+										safePackageVersion.version,
 									)
 								: "";
 						case "sep":
@@ -347,18 +497,18 @@ export function installFooter(
 						case "git_commit":
 							return formatGitCommitSegment(
 								theme,
-								state.commit,
+								safeCommit,
 								config.gitCommit,
 								colorSource,
 								config.colors.gitCommit,
 							);
 						case "git_tag":
-							return config.gitCommit.showTag && state.commit?.tag
+							return config.gitCommit.showTag && safeCommit?.tag
 								? renderStyleForSource(
 										theme,
 										colorSource,
 										config.colors.gitCommit,
-										state.commit.tag,
+										safeCommit.tag,
 									)
 								: "";
 						case "git_metrics":
@@ -388,6 +538,44 @@ export function installFooter(
 										`−${state.metrics.deleted}`,
 									)
 								: "";
+						case "session_name":
+							return sessionNameLabel;
+						case "model":
+							return modelStatusLabel;
+						case "provider":
+							return statusStyle(config.colors.runtimePrefix, providerId);
+						case "model_id":
+							return statusStyle(config.colors.runtimePrefix, modelId);
+						case "thinking":
+							return thinkingLabel;
+						case "turn":
+							return turnLabel;
+						case "cache_read":
+							return cacheReadLabel;
+						case "cache_write":
+							return cacheWriteLabel;
+						case "cache_hit":
+							return cacheHitLabel;
+						case "codex_usage":
+							return codexUsageLabel;
+						case "instruction_files":
+							return instructionFilesLabel;
+						case "agents_files":
+							return agentsFilesLabel;
+						case "claude_files":
+							return claudeFilesLabel;
+						case "skills":
+							return skillsLabel;
+						case "extensions":
+							return extensionsLabel;
+						case "mcp":
+							return mcpLabel;
+						case "tool_counts":
+							return toolCountsLabel;
+						case "running_tools":
+							return runningToolsLabel;
+						case "active_agents":
+							return activeAgentsLabel;
 						default:
 							return "";
 					}
@@ -396,13 +584,13 @@ export function installFooter(
 				if (config.footerSegments.gitBranch) {
 					if (branchText) {
 						branchParts.push("on", gitIcon, gitColor(branchText));
-					} else if (state.commit?.detached) {
+					} else if (safeCommit?.detached) {
 						// `HEAD` uses git-branch style; `(hash)` uses git-commit style
 						// (bold green) per Starship `git_commit` format.
 						branchParts.push("on", gitIcon, gitColor("HEAD"));
-						if (config.footerSegments.gitCommit && state.commit.oid) {
-							const shortHash = state.commit.oid.slice(0, config.gitCommit.hashLength);
-							const tag = config.gitCommit.showTag && state.commit.tag ? state.commit.tag : "";
+						if (config.footerSegments.gitCommit && safeCommit.oid) {
+							const shortHash = safeCommit.oid.slice(0, config.gitCommit.hashLength);
+							const tag = config.gitCommit.showTag && safeCommit.tag ? safeCommit.tag : "";
 							const inner = [shortHash, tag].filter(Boolean).join(" ");
 							branchParts.push(
 								renderStyleForSource(theme, colorSource, config.colors.gitCommit, `(${inner})`),
@@ -419,7 +607,7 @@ export function installFooter(
 				const runtimeLabel = config.footerSegments.runtime
 					? formatRuntimeSegment(
 							theme,
-							state.runtime,
+							safeRuntime,
 							config.colors.runtimePrefix,
 							colorSource,
 							iconMode,
@@ -428,7 +616,7 @@ export function installFooter(
 				const packageVersionLabel = config.footerSegments.packageVersion
 					? formatPackageVersionSegment(
 							theme,
-							state.packageVersion,
+							safePackageVersion,
 							colorSource,
 							iconMode,
 							config.icons.package,
@@ -437,12 +625,12 @@ export function installFooter(
 					: "";
 				// Skip standalone gitCommit when hash is already folded into the
 				// branch display on detached HEAD.
-				const hashFoldedIntoBranch = state.commit?.detached && config.footerSegments.gitBranch;
+				const hashFoldedIntoBranch = safeCommit?.detached && config.footerSegments.gitBranch;
 				const gitCommitLabel =
 					config.footerSegments.gitCommit && !hashFoldedIntoBranch
 						? formatGitCommitSegment(
 								theme,
-								state.commit,
+								safeCommit,
 								config.gitCommit,
 								colorSource,
 								config.colors.gitCommit,
@@ -487,20 +675,6 @@ export function installFooter(
 							formatOsLabel(config.icons.os, iconMode),
 						)
 					: "";
-				const left = [
-					osSegment,
-					usernameSegment,
-					config.footerSegments.cwd ? cwdLabel : "",
-					branchLabel,
-					gitCommitLabel,
-					gitMetricsLabel,
-					packageVersionLabel,
-					runtimeLabel,
-					sessionDurationSegment,
-				]
-					.filter(Boolean)
-					.join(" ");
-
 				const timeSegment = config.footerSegments.time
 					? renderStyleForSource(
 							theme,
@@ -509,58 +683,102 @@ export function installFooter(
 							formatTimeLabel(config.icons.time),
 						)
 					: "";
-				const right = [
+				const upperLeft = [
+					osSegment,
+					usernameSegment,
+					config.footerSegments.cwd ? cwdLabel : "",
+					branchLabel,
+					gitCommitLabel,
+					gitMetricsLabel,
+					packageVersionLabel,
+					runtimeLabel,
+					config.footerSegments.configCounts ? configCountsLabel : "",
+				]
+					.filter(Boolean)
+					.join(" ");
+				const upperRight = [
+					config.footerSegments.sessionName ? sessionNameLabel : "",
+					config.footerSegments.model ? modelStatusLabel : "",
+					config.footerSegments.thinking ? thinkingLabel : "",
+					config.footerSegments.turnCount ? turnLabel : "",
+					sessionDurationSegment,
+					timeSegment,
+				]
+					.filter(Boolean)
+					.join(separator);
+				const lowerLeft = [
+					config.footerSegments.toolActivity ? runningToolsLabel || toolCountsLabel : "",
+					config.footerSegments.agentActivity ? activeAgentsLabel : "",
+				]
+					.filter(Boolean)
+					.join(separator);
+				const lowerRight = [
 					config.footerSegments.context
 						? renderStyleForSource(theme, colorSource, contextColor, contextLabel)
 						: "",
 					config.footerSegments.tokens
 						? renderStyleForSource(theme, colorSource, config.colors.tokens, state.tokenLabel)
 						: "",
+					config.footerSegments.cacheDetails ? cacheDetailsLabel : "",
 					config.footerSegments.cost
 						? renderStyleForSource(theme, colorSource, config.colors.cost, state.costLabel)
 						: "",
-					timeSegment,
+					config.footerSegments.codexUsage ? codexUsageLabel : "",
+					config.footerSegments.mcp ? mcpLabel : "",
 				]
 					.filter(Boolean)
 					.join(separator);
 
-				let contentLeft = left;
-				let contentMiddle = "";
-				let contentRight = right;
+				const formatNeedsMcp = /\$\{?mcp\b/.test(config.footerFormat);
+				const dedicatedMcpVisible = Boolean(
+					mcpStatus && (config.footerFormat ? formatNeedsMcp : config.footerSegments.mcp),
+				);
+				const extensionStatusSource = dedicatedMcpVisible
+					? new Map([...rawExtensionStatuses].filter(([key]) => key !== "mcp"))
+					: rawExtensionStatuses;
+				const extensionStatuses = collectExtensionStatusSegments(extensionStatusSource, config);
+				const renderExtensionStatus = (segment: ExtensionStatusSegment) =>
+					segment.colorMode === "original"
+						? segment.text
+						: renderStyleForSource(theme, colorSource, config.colors.extensionStatus, segment.text);
+				const extensionLeft = extensionStatuses.left.map(renderExtensionStatus);
+				const extensionMiddle = extensionStatuses.middle.map(renderExtensionStatus);
+				const extensionRight = extensionStatuses.right.map(renderExtensionStatus);
+				const frame = (content: string) => {
+					const framed = width > 2 ? ` ${truncateToWidth(content, width - 2, "")} ` : content;
+					return truncateToWidth(framed, width, "");
+				};
+
 				if (config.footerFormat) {
 					const {
 						left: fmtLeft,
 						middle: fmtMiddle,
 						right: fmtRight,
 					} = renderFormatSplit(parseFooterFormat(config.footerFormat), renderVariable);
-					contentLeft = stripOrphanSeparators(fmtLeft);
-					contentMiddle = stripOrphanSeparators(fmtMiddle);
-					contentRight = stripOrphanSeparators(fmtRight);
+					const templateMiddle = stripOrphanSeparators(fmtMiddle);
+					const content = composeFooterContent(
+						stripOrphanSeparators(fmtLeft),
+						stripOrphanSeparators(fmtRight),
+						extensionLeft,
+						templateMiddle ? [templateMiddle, ...extensionMiddle] : extensionMiddle,
+						extensionRight,
+						separator,
+						innerWidth,
+					);
+					return [frame(content)];
 				}
 
-				const extensionStatuses = collectExtensionStatusSegments(
-					footerData.getExtensionStatuses(),
-					config,
-				);
-				const renderExtensionStatus = (segment: ExtensionStatusSegment) =>
-					segment.colorMode === "original"
-						? segment.text
-						: renderStyleForSource(theme, colorSource, config.colors.extensionStatus, segment.text);
-				const extensionMiddleSegments = extensionStatuses.middle.map(renderExtensionStatus);
-				const middleSegments = contentMiddle
-					? [contentMiddle, ...extensionMiddleSegments]
-					: extensionMiddleSegments;
-				const content = composeFooterContent(
-					contentLeft,
-					contentRight,
-					extensionStatuses.left.map(renderExtensionStatus),
-					middleSegments,
-					extensionStatuses.right.map(renderExtensionStatus),
+				const upperContent = composeBuiltInFooterContent(upperLeft, upperRight, innerWidth);
+				const lowerContent = composeFooterContent(
+					lowerLeft,
+					lowerRight,
+					extensionLeft,
+					extensionMiddle,
+					extensionRight,
 					separator,
 					innerWidth,
 				);
-				const framed = width > 2 ? ` ${truncateToWidth(content, width - 2, "")} ` : content;
-				return [truncateToWidth(framed, width, "")];
+				return [frame(upperContent), frame(lowerContent)];
 			},
 		};
 	});

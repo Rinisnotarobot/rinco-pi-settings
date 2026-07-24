@@ -1,18 +1,31 @@
 # pi-sakura-cyberdeck
 
-Sakura Macaron visual pack for [Pi](https://pi.dev):
+Sakura Macaron visual pack for Pi containing only:
 
-- `sakura-macaron` truecolor theme
-- Sakura → sky cyberdeck startup header
-- animated pastel Matrix rain while Pi works
-- modified Zentui editor, prompt chrome, and Starship-style footer
-- fixed bottom editor enabled by default
+- the `sakura-macaron` truecolor theme
+- the Sakura → sky cyberdeck startup header
+- a complete dynamic Zentui footer
+
+The footer preserves live model/context and token data, session cost and duration, Git branch/status/commit/metrics, runtime and project package detection, extension statuses, path/layout controls, icons, colors, and custom footer formats. It also integrates session/turn/thinking metadata, cache read/write totals, Codex subscription usage, MCP connectivity, Pi configuration counts, and live tool/agent-run activity. All integrated statuses use the Sakura palette; this package does not replace or pin Pi's editor.
+
+## Documentation
+
+Detailed Chinese documentation is available in [`docs/README.md`](docs/README.md):
+
+- [Getting started](docs/getting-started.md)
+- [Footer guide and template variables](docs/footer.md)
+- [Configuration reference](docs/configuration.md)
+- [Architecture](docs/architecture.md)
+- [Theme and header](docs/theme-and-header.md)
+- [Development and release](docs/development.md)
+- [Troubleshooting](docs/troubleshooting.md)
 
 ## Requirements
 
 - Pi `>= 0.80`
 - truecolor terminal
 - Nerd Font for configured icons
+- optional Codex CLI for subscription-usage fallback
 
 ## Install
 
@@ -34,45 +47,38 @@ Local test:
 pi install ./pi-sakura-cyberdeck
 ```
 
-Then open `/settings` and select **sakura-macaron**. Restart Pi once so fixed-editor chrome owns the full session.
+Then open `/settings` and select **sakura-macaron**.
 
 > Pi packages execute with your user permissions. Review extension source before installing third-party packages.
 
-## Commands
+## Footer settings
+
+Run `/zentui` for the full interactive Footer settings UI. With an empty `footerFormat`, the built-in Footer uses two semantic rows: project/session information above and activity/usage information below. A non-empty template keeps the compatible single-row layout. `/zentui` controls colors, visibility, segments, extension-status placement/coloring, icons, path display, branch length, separators, and context rendering.
+
+Direct commands:
 
 ```text
-/zentui                         interactive editor/footer settings
-/sakura-matrix                 animation status
-/sakura-matrix on|off
-/sakura-matrix preview
-/sakura-matrix fps <8-18>
-/sakura-matrix density <0.45-0.95>
+/zentui statusline enable|disable|toggle
+/zentui format clear
+/zentui format "$cwd on $git_branch $fill $context"
+/codex-status [--refresh] [--timeout seconds]
 ```
 
-User overrides are stored separately from other Zentui installs:
+Codex usage first uses Pi's OpenAI Codex authentication and falls back to `codex app-server` when available.
+
+User overrides are stored at:
 
 ```text
 ~/.pi/agent/sakura-cyberdeck-zentui.json
-~/.pi/agent/sakura-cyberdeck-matrix.json
 ```
 
-Delete either file to restore this package's defaults.
+Delete the file to restore defaults. Deprecated keys from older releases are ignored, while supported Footer settings in the same file continue to load.
 
-## Fixed-editor warning
-
-Fixed editor uses alternate-screen and terminal mouse reporting. While mouse scrolling is enabled, native terminal selection, URL clicking, and normal scrollback may be unavailable.
-
-Disable it with:
-
-```text
-/zentui fixed-editor disable
-```
-
-Avoid running this package together with `pi-zentui`, `pi-powerline-footer`, `@tifan/pi-fixed-editor`, `pi-sticky-input`, or duplicate copies of its header/matrix extensions. They compete for the same TUI surfaces.
+Avoid running this package together with another extension that owns Pi's footer or a duplicate copy of its header. They compete for the same TUI surfaces.
 
 ## Customize branding
 
-Edit `extensions/header/index.ts` and replace `SAKURA CYBERDECK`. Palette lives in `themes/sakura-macaron.json`; Zentui defaults live in `extensions/zentui/config.ts`.
+Edit `extensions/header/index.ts` and replace `SAKURA CYBERDECK`. The palette lives in `themes/sakura-macaron.json`; Footer defaults live in `extensions/zentui/config.ts`.
 
 ## Publish
 
@@ -86,7 +92,7 @@ For Pi package gallery artwork, add a hosted PNG/WebP URL as `pi.image` in `pack
 
 ## Credits
 
-Zentui portion derives from [lmilojevicc/pi-zentui](https://github.com/lmilojevicc/pi-zentui), MIT licensed. See [NOTICE](NOTICE) and [licenses/pi-zentui-MIT.txt](licenses/pi-zentui-MIT.txt).
+The Zentui Footer derives from `lmilojevicc/pi-zentui`, MIT licensed. See `NOTICE` and `licenses/pi-zentui-MIT.txt`.
 
 ## License
 

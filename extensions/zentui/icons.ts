@@ -23,8 +23,6 @@ export type IconGlyphs = {
 	deleted: string;
 	typechanged: string;
 	cacheHit: string;
-	editorPrompt: string;
-	rail: string;
 	username: string;
 	time: string;
 	os: string;
@@ -48,8 +46,6 @@ export const ICON_GLYPH_KEYS = [
 	"deleted",
 	"typechanged",
 	"cacheHit",
-	"editorPrompt",
-	"rail",
 	"username",
 	"time",
 	"os",
@@ -79,8 +75,6 @@ export const NERD_DEFAULT_ICONS: IconGlyphs = {
 	deleted: "✘",
 	typechanged: "T",
 	cacheHit: "󰆼",
-	editorPrompt: "",
-	rail: "│",
 	username: "",
 	time: "",
 	os: "",
@@ -103,8 +97,6 @@ export const ASCII_DEFAULT_ICONS: IconGlyphs = {
 	deleted: "x",
 	typechanged: "T",
 	cacheHit: "c",
-	editorPrompt: "",
-	rail: "|",
 	username: "@",
 	time: "t",
 	os: "o",
@@ -201,15 +193,10 @@ export function resolveConfiguredIcons(
 	overrides: Partial<IconGlyphs> = {},
 ): ResolvedIcons {
 	const base = modeDefaultIcons(mode);
-	const rail =
-		typeof overrides.rail === "string" && overrides.rail.trim().length > 0
-			? overrides.rail
-			: base.rail;
 	return {
 		mode,
 		...base,
 		...overrides,
-		rail,
 	};
 }
 

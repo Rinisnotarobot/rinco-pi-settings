@@ -1,3 +1,6 @@
 node_modules/
 *.tgz
 .DS_Store
+
+# Vendored upstream reference source (code is copied into extensions/zentui)
+pi-shannon-statusline/

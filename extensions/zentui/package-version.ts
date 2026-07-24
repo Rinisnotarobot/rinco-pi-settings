@@ -113,8 +113,9 @@ function cleanVersion(value: string | undefined): string | undefined {
 	text = text.trim();
 	if (!text) return undefined;
 
-	// Reject obvious junk (whitespace, control chars, braces).
-	if (/[\s\r\n\t]/.test(text)) return undefined;
+	// Reject whitespace, terminal/control characters, braces, and oversized values.
+	if (text.length > 160) return undefined;
+	if (/[\s\u0000-\u001f\u007f-\u009f]/.test(text)) return undefined;
 	if (/[{}\\<>]/.test(text)) return undefined;
 
 	return text;
