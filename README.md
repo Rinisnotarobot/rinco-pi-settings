@@ -1,5 +1,14 @@
 # pi-sakura-cyberdeck
 
+> **Attribution.** This is a personal fork/derivative of
+> [`beautifulrem/pi-sakura-cyberdeck`](https://github.com/beautifulrem/pi-sakura-cyberdeck),
+> which itself integrates work from
+> [`lmilojevicc/pi-zentui`](https://github.com/lmilojevicc/pi-zentui),
+> [`RealAlexandreAI/pi-shannon-statusline`](https://github.com/RealAlexandreAI/pi-shannon-statusline),
+> and [`narumiruna/pi-codex-usage`](https://github.com/narumiruna/pi-codex-usage).
+> All upstream projects are MIT licensed; their notices are preserved in
+> [`NOTICE`](NOTICE) and [`licenses/`](licenses). Thanks to every original author.
+
 Sakura Macaron visual pack for Pi containing only:
 
 - the `sakura-macaron` truecolor theme
@@ -92,7 +101,7 @@ For Pi package gallery artwork, add a hosted PNG/WebP URL as `pi.image` in `pack
 
 ## Credits
 
-The Zentui Footer derives from `lmilojevicc/pi-zentui`, MIT licensed. See `NOTICE` and `licenses/pi-zentui-MIT.txt`.
+Derived from [`beautifulrem/pi-sakura-cyberdeck`](https://github.com/beautifulrem/pi-sakura-cyberdeck) (MIT). The Zentui Footer originates from `lmilojevicc/pi-zentui`, HUD data capabilities from `RealAlexandreAI/pi-shannon-statusline`, and the Codex usage client from `narumiruna/pi-codex-usage` — all MIT licensed. See `NOTICE` and `licenses/`.
 
 ## License
 

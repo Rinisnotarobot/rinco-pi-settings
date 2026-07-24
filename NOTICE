@@ -1,3 +1,10 @@
+This package is a personal derivative of pi-sakura-cyberdeck by beautifulrem.
+Original project: https://github.com/beautifulrem/pi-sakura-cyberdeck
+License: MIT.
+
+The upstream project integrates the components credited below; those
+attributions are carried over and remain in effect.
+
 This package includes a modified copy of the Footer portion of pi-zentui by Luka.
 Original project: https://github.com/lmilojevicc/pi-zentui
 License: MIT. Full license text: licenses/pi-zentui-MIT.txt
