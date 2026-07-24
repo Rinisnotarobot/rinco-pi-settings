@@ -21,7 +21,15 @@
 │       ├── telemetry.ts
 │       ├── config-counts.ts
 │       ├── mcp-status.ts
-│       ├── codex-usage/
+│       ├── codex-usage/          # Codex 订阅用量客户端（衍生自 pi-codex-usage）
+│       │   ├── index.ts
+│       │   ├── query.ts
+│       │   ├── app-server-client.ts
+│       │   ├── normalize.ts
+│       │   ├── format.ts
+│       │   ├── safety.ts
+│       │   ├── types.ts
+│       │   └── LICENSE
 │       ├── project-state.ts
 │       ├── project-refresh.ts
 │       ├── live-context.ts
@@ -33,6 +41,9 @@
 │   └── sakura-macaron.json
 ├── scripts/
 │   └── check.mjs
+├── tests/
+│   ├── zentui-status.test.ts
+│   └── codex-usage.test.ts
 ├── docs/
 ├── licenses/
 ├── package.json
@@ -246,7 +257,7 @@ npm publish --access public
 后续可优先补充：
 
 1. TypeScript 配置和类型检查脚本；
-2. 模板、格式化、配置归一化和 parser 单元测试；
+2. 模板、格式化、配置归一化和 parser 单元测试（telemetry、config-counts、codex-usage、package-version、mcp-status 已有覆盖）；
 3. Git/Runtime 刷新集成测试；
 4. CI；
 5. 固定或约束 Peer 兼容范围；

@@ -32,7 +32,7 @@ Detailed Chinese documentation is available in [`docs/README.md`](docs/README.md
 From GitHub:
 
 ```bash
-pi install git:github.com/YOUR_NAME/pi-sakura-cyberdeck
+pi install git:github.com/Rinisnotarobot/rinco-pi-settings
 ```
 
 From npm after publication:

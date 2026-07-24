@@ -4,6 +4,14 @@
   "description": "Sakura Macaron theme with a cyberdeck header and dynamic Zentui footer for Pi.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rinisnotarobot/rinco-pi-settings.git"
+  },
+  "homepage": "https://github.com/Rinisnotarobot/rinco-pi-settings#readme",
+  "bugs": {
+    "url": "https://github.com/Rinisnotarobot/rinco-pi-settings/issues"
+  },
   "keywords": [
     "pi-package",
     "pi-theme",

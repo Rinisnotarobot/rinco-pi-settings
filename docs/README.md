@@ -54,7 +54,7 @@
 - Git 和 Runtime 检测会执行本机命令；项目版本检测只读取清单文件。
 - Codex usage 会访问固定 ChatGPT endpoint，并可能启动本机 `codex app-server` fallback。
 - 多个扩展若同时调用 `ctx.ui.setHeader()` 或 `ctx.ui.setFooter()`，会竞争同一 UI 区域。
-- 当前仓库只提供包级静态检查，没有单元测试、类型检查、Lint 或 CI 配置。
+- 当前仓库提供包级静态检查（`npm run check`）与基于 Node 原生 TypeScript strip-types 的逻辑测试（`npm test`），但没有类型检查、Lint 或 CI 配置。
 
 ## 版本与许可证
 
