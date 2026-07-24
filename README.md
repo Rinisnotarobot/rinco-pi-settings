@@ -1,108 +1,207 @@
-# pi-sakura-cyberdeck
+<div align="center">
 
-> **Attribution.** This is a personal fork/derivative of
-> [`beautifulrem/pi-sakura-cyberdeck`](https://github.com/beautifulrem/pi-sakura-cyberdeck),
-> which itself integrates work from
-> [`lmilojevicc/pi-zentui`](https://github.com/lmilojevicc/pi-zentui),
-> [`RealAlexandreAI/pi-shannon-statusline`](https://github.com/RealAlexandreAI/pi-shannon-statusline),
-> and [`narumiruna/pi-codex-usage`](https://github.com/narumiruna/pi-codex-usage).
-> All upstream projects are MIT licensed; their notices are preserved in
-> [`NOTICE`](NOTICE) and [`licenses/`](licenses). Thanks to every original author.
+# 🌸 Rinco's Sakura CyberDeck
 
-Sakura Macaron visual pack for Pi containing only:
+**Personal Pi extension pack: Sakura Macaron theme + dynamic Zentui footer + cyberdeck header**
 
-- the `sakura-macaron` truecolor theme
-- the Sakura → sky cyberdeck startup header
-- a complete dynamic Zentui footer
+[![License: MIT](https://img.shields.io/badge/license-MIT-F2A7C6?style=flat)](LICENSE)
+[![Pi ≥ 0.80](https://img.shields.io/badge/pi-%E2%89%A5%200.80-9FD3F2?style=flat)](https://github.com/earendil-works/pi)
 
-The footer preserves live model/context and token data, session cost and duration, Git branch/status/commit/metrics, runtime and project package detection, extension statuses, path/layout controls, icons, colors, and custom footer formats. It also integrates session/turn/thinking metadata, cache read/write totals, Codex subscription usage, MCP connectivity, Pi configuration counts, and live tool/agent-run activity. All integrated statuses use the Sakura palette; this package does not replace or pin Pi's editor.
+<img src="docs/assets/screenshot-header.png" alt="Sakura Cyberdeck startup screen with gradient ASCII art and status footer" width="700" style="border-radius: 8px; margin: 20px 0;" />
 
-## Documentation
+**[Install](#-install)** · **[What's Included](#-whats-included)** · **[Docs](docs/README.md)** · **[Config](docs/configuration.md)**
 
-Detailed Chinese documentation is available in [`docs/README.md`](docs/README.md):
+English | [简体中文](README.zh-CN.md)
 
-- [Getting started](docs/getting-started.md)
-- [Footer guide and template variables](docs/footer.md)
-- [Configuration reference](docs/configuration.md)
-- [Architecture](docs/architecture.md)
-- [Theme and header](docs/theme-and-header.md)
-- [Development and release](docs/development.md)
-- [Troubleshooting](docs/troubleshooting.md)
+</div>
 
-## Requirements
+---
 
-- Pi `>= 0.80`
-- truecolor terminal
-- Nerd Font for configured icons
-- optional Codex CLI for subscription-usage fallback
+## 🎨 What's Included
 
-## Install
+This is my personal integration of several upstream Pi extensions into one cohesive package:
 
-From GitHub:
+### 1. Sakura Macaron Theme
+
+Dark truecolor theme with a pastel palette:
+
+- **Sakura pink** (`#F2A7C6`) for accents and headings
+- **Sky blue** (`#9FD3F2`) for links and function names
+- **Lavender** (`#C7B8F5`) for types and variables
+- **Mint green** (`#AEE5C5`) for strings and success states
+- **Peach** (`#F6BC9A`) for inline code
+- Deep purple backgrounds (`#14111A` → `#2D2438`) for comfortable long sessions
+
+See the full palette in [`themes/sakura-macaron.json`](themes/sakura-macaron.json).
+
+### 2. Cyberdeck Startup Header
+
+Gradient ASCII art header that renders on session start:
+
+- Anime-style art with sakura → sky gradient
+- "SAKURA CYBERDECK" label in lavender → peach gradient
+- Auto-centers based on terminal width
+- Non-intrusive: shows once at boot, then gets out of your way
+
+### 3. Dynamic Zentui Footer
+
+Fully integrated status bar that tracks:
+
+| Category            | What It Shows                                         |
+| ------------------- | ----------------------------------------------------- |
+| **Model & Context** | Current model, tokens used/available, context %       |
+| **Session**         | Duration, turn count, thinking level, cache stats     |
+| **Git**             | Branch, commit hash, dirty/clean status, diff metrics |
+| **Cost**            | Accumulated session cost reported by Pi               |
+| **Runtime**         | Auto-detected: Node, Python, Go, Rust, and more       |
+| **Tools**           | Tool calls, main-agent activity, MCP, extension count |
+| **Codex**           | Subscription usage                                    |
+
+All styled in Sakura palette. Fully customizable via template strings.
+
+---
+
+## 📦 Install
+
+### Requirements
+
+- **Pi** ≥ 0.80 (extension API support)
+- **Truecolor terminal** (24-bit color)
+- **Nerd Font** (optional; recommended for icons, with an `ascii` fallback)
+- **Codex CLI** (optional, for subscription usage tracking)
+
+### From GitHub
 
 ```bash
 pi install git:github.com/Rinisnotarobot/rinco-pi-settings
 ```
 
-From npm after publication:
+### Enable the Theme
 
-```bash
-pi install npm:pi-sakura-cyberdeck
-```
+The package manifest registers the header, footer, and theme automatically. After installation:
 
-Local test:
+1. Restart Pi.
+2. Open `/settings`.
+3. Select **sakura-macaron** as the theme.
 
-```bash
-pi install ./pi-sakura-cyberdeck
-```
+> Pi packages run with your user permissions. Review third-party extension source before installing it.
 
-Then open `/settings` and select **sakura-macaron**.
+---
 
-> Pi packages execute with your user permissions. Review extension source before installing third-party packages.
+## ⚙️ Configuration
 
-## Footer settings
+Run `/zentui` for the interactive settings UI. Custom footer formats use `$name` or `${name}` variables:
 
-Run `/zentui` for the full interactive Footer settings UI. With an empty `footerFormat`, the built-in Footer uses two semantic rows: project/session information above and activity/usage information below. A non-empty template keeps the compatible single-row layout. `/zentui` controls colors, visibility, segments, extension-status placement/coloring, icons, path display, branch length, separators, and context rendering.
+| Variable            | Description          | Example                    |
+| ------------------- | -------------------- | -------------------------- |
+| `$model`            | Provider and model   | `openai-codex/gpt-5.3`     |
+| `$context`          | Context usage        | `35%/200k`                 |
+| `$tokens`           | Token totals         | `↑4.2k ↓1.1k`              |
+| `$cost`             | Session cost         | `$0.030`                   |
+| `$session_duration` | Session time         | `14m 32s`                  |
+| `$git_branch`       | Git branch           | `main`                     |
+| `$git_commit`       | Short commit and tag | `a3f7b2c`                  |
+| `$tool_counts`      | Completed tool calls | `read×3 edit`              |
+| `$mcp`              | MCP server status    | `⊕ 2/2`                    |
 
-Direct commands:
-
-```text
-/zentui statusline enable|disable|toggle
-/zentui format clear
-/zentui format "$cwd on $git_branch $fill $context"
-/codex-status [--refresh] [--timeout seconds]
-```
-
-Codex usage first uses Pi's OpenAI Codex authentication and falls back to `codex app-server` when available.
-
-User overrides are stored at:
+**Example footer format:**
 
 ```text
-~/.pi/agent/sakura-cyberdeck-zentui.json
+/zentui format "$model · $context · $cost · $git_branch( $git_commit) · $session_duration"
 ```
 
-Delete the file to restore defaults. Deprecated keys from older releases are ignored, while supported Footer settings in the same file continue to load.
+To restore the built-in two-line layout, run `/zentui format clear`.
 
-Avoid running this package together with another extension that owns Pi's footer or a duplicate copy of its header. They compete for the same TUI surfaces.
+Full reference: [Footer Guide](docs/footer.md) · [Configuration Docs](docs/configuration.md)
 
-## Customize branding
+---
 
-Edit `extensions/header/index.ts` and replace `SAKURA CYBERDECK`. The palette lives in `themes/sakura-macaron.json`; Footer defaults live in `extensions/zentui/config.ts`.
+## 📚 Documentation
 
-## Publish
+| Doc                                            | What's Inside                            |
+| ---------------------------------------------- | ---------------------------------------- |
+| **[Getting Started](docs/getting-started.md)** | Installation, first steps, common setups |
+| **[Footer Guide](docs/footer.md)**             | Template variables, formatting, examples |
+| **[Configuration](docs/configuration.md)**     | All settings, defaults, overrides        |
+| **[Architecture](docs/architecture.md)**       | How it works under the hood              |
+| **[Theme & Header](docs/theme-and-header.md)** | Color palette, header customization      |
+| **[Development](docs/development.md)**         | Contributing, building, releasing        |
+| **[Troubleshooting](docs/troubleshooting.md)** | Common issues, fixes, FAQs               |
 
-```bash
-npm run check
-npm run pack:check
-npm publish --access public
+Detailed Chinese documentation: [**docs/README.md**](docs/README.md)
+
+---
+
+## 🏗️ How It Works
+
+```mermaid
+graph LR
+  A[Pi Core] --> B[Sakura Theme JSON]
+  A --> C[Header Extension]
+  A --> D[Zentui Footer]
+  D --> E[Model/Context]
+  D --> F[Git State]
+  D --> G[Session Telemetry]
+  D --> H[Runtime Detection]
+  D --> I[MCP/Tools]
 ```
 
-For Pi package gallery artwork, add a hosted PNG/WebP URL as `pi.image` in `package.json`.
+**Design principles:**
 
-## Credits
+- Uses only Pi and TUI APIs (no external dependencies)
+- Non-invasive: doesn't replace editor, keymap, or core UX
+- Composable: works alongside extensions that do not replace the same header or footer surfaces
+- Async updates: no blocking on I/O
 
-Derived from [`beautifulrem/pi-sakura-cyberdeck`](https://github.com/beautifulrem/pi-sakura-cyberdeck) (MIT). The Zentui Footer originates from `lmilojevicc/pi-zentui`, HUD data capabilities from `RealAlexandreAI/pi-shannon-statusline`, and the Codex usage client from `narumiruna/pi-codex-usage` — all MIT licensed. See `NOTICE` and `licenses/`.
+---
 
-## License
+## 🛠️ Development
 
-MIT
+This is a personal package, but PRs are welcome for:
+
+- Footer metrics or layout improvements
+- Theme palette tweaks
+- Bug fixes
+
+**Before submitting:**
+
+1. `npm test` — tests must pass
+2. `npm run check` — validate package structure and source invariants
+3. Update docs if adding features
+
+See [Development Guide](docs/development.md).
+
+---
+
+## 🙏 Attribution
+
+This package integrates and adapts work from:
+
+- [`beautifulrem/pi-sakura-cyberdeck`](https://github.com/beautifulrem/pi-sakura-cyberdeck)
+- [`lmilojevicc/pi-zentui`](https://github.com/lmilojevicc/pi-zentui)
+- [`RealAlexandreAI/pi-shannon-statusline`](https://github.com/RealAlexandreAI/pi-shannon-statusline)
+- [`narumiruna/pi-extensions` (`pi-codex-usage`)](https://github.com/narumiruna/pi-extensions)
+
+All upstream projects are MIT licensed. Original notices preserved in [`NOTICE`](NOTICE) and [`licenses/`](licenses).
+
+Thank you to every original author.
+
+---
+
+## 💬 Troubleshooting
+
+| Issue               | Fix                                                 |
+| ------------------- | --------------------------------------------------- |
+| Icons show as `?`   | Install a Nerd Font and configure your terminal     |
+| Colors look wrong   | Enable truecolor in your terminal settings          |
+| Footer not updating | Check Pi version (`pi --version`) — requires ≥ 0.80 |
+
+Full troubleshooting guide: [docs/troubleshooting.md](docs/troubleshooting.md)
+
+**Issues?** [github.com/Rinisnotarobot/rinco-pi-settings/issues](https://github.com/Rinisnotarobot/rinco-pi-settings/issues)
+
+---
+
+## 📝 License
+
+[MIT](LICENSE)
