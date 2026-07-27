@@ -261,12 +261,31 @@ test("package versions reject terminal controls and oversized values", () => {
 	assert.equal(packageVersionTest.cleanVersion("1".repeat(161)), undefined);
 });
 
-test("MCP status parser strips ANSI and rejects missing, malformed, or unsafe counts", () => {
+test("MCP status parser supports current enabled and legacy fraction formats", () => {
+	assert.deepEqual(parseMcpStatus("🔌 MCP: 3 servers enabled (2 connected)"), { connected: 2, total: 3 });
+	assert.deepEqual(parseMcpStatus("🔌 MCP: 3 servers enabled"), { connected: 0, total: 3 });
+	assert.deepEqual(parseMcpStatus("🔌 MCP: 1 server enabled"), { connected: 0, total: 1 });
+	assert.deepEqual(parseMcpStatus("🔌 MCP: 2 servers enabled (1 disabled)"), { connected: 0, total: 2 });
+	assert.deepEqual(parseMcpStatus("🔌 MCP: 2 servers enabled (1 connected) (1 disabled)"), {
+		connected: 1,
+		total: 2,
+	});
+	assert.deepEqual(parseMcpStatus("\u001b[36m🔌 MCP: 12 servers enabled (4 connected)\u001b[0m"), {
+		connected: 4,
+		total: 12,
+	});
 	assert.deepEqual(parseMcpStatus("\u001b[36mMCP:\u001b[0m 2/3 servers"), { connected: 2, total: 3 });
 	assert.deepEqual(parseMcpStatus("prefix MCP: 0 / 12 servers suffix"), { connected: 0, total: 12 });
+});
+
+test("MCP status parser rejects missing, malformed, or unsafe counts", () => {
 	assert.equal(parseMcpStatus("MCP: unavailable"), undefined);
 	assert.equal(parseMcpStatus("MCP: 2/3 clients"), undefined);
 	assert.equal(parseMcpStatus("MCP: 4/3 servers"), undefined);
 	assert.equal(parseMcpStatus("MCP: 2/99999 servers"), undefined);
+	assert.equal(parseMcpStatus("🔌 MCP: 3 servers enabled (4 connected)"), undefined);
+	assert.equal(parseMcpStatus("🔌 MCP: 10001 servers enabled (1 connected)"), undefined);
+	assert.equal(parseMcpStatus("🔌 MCP: 3 servers enabled (99999 connected)"), undefined);
+	assert.equal(parseMcpStatus("🔌 MCP: 3 servers enabled (100000 connected)"), undefined);
 	assert.equal(parseMcpStatus(undefined), undefined);
 });
