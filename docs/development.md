@@ -11,6 +11,7 @@
 │       ├── index.ts
 │       ├── config.ts
 │       ├── footer.ts
+│       ├── footer-layout.ts
 │       ├── footer-format.ts
 │       ├── format.ts
 │       ├── state.ts
@@ -19,6 +20,7 @@
 │       ├── package-version.ts
 │       ├── extension-status.ts
 │       ├── telemetry.ts
+│       ├── skill-activity.ts
 │       ├── config-counts.ts
 │       ├── mcp-status.ts
 │       ├── codex-usage/          # Codex 订阅用量客户端（衍生自 pi-codex-usage）
@@ -128,7 +130,7 @@ extensions, themes, licenses, scripts, docs, README.md, LICENSE, NOTICE
 npm test
 ```
 
-当前覆盖 Telemetry 的并发 Tool ID 关联、记录上限、target 清洗、Agent run、配置统计容错、MCP 文本解析，以及 Codex payload 规范化和模型专属额度格式化。测试不发网络请求，也不启动 Codex CLI。
+当前覆盖 Footer 分类左对齐三行布局与窄宽度预算、Telemetry 的并发 Tool ID 关联、记录上限、target 清洗、Agent run、Skill 发现/激活与 Session branch 恢复、配置统计容错、MCP 文本解析，以及 Codex payload 规范化和模型专属额度格式化。测试不发网络请求，也不启动 Codex CLI。
 
 ## 手工测试矩阵
 

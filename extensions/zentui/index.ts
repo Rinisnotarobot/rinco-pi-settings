@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, Skill } from "@earendil-works/pi-coding-agent";
 import registerCodexUsage from "./codex-usage/index";
 import { countConfigEntries } from "./config-counts";
 import { registerEffortCommand } from "./effort-command";
@@ -42,6 +42,7 @@ import {
 import { applyProjectRefreshToState } from "./project-state";
 import { readRuntimeInfo } from "./runtime";
 import { SessionLifecycle } from "./session-lifecycle";
+import { SkillActivityTracker, type SkillReference } from "./skill-activity";
 import { registerZentuiSettingsCommand } from "./settings-command";
 import { createInitialState, type FooterState, syncState } from "./state";
 import { resetTelemetryState, updateTelemetryState } from "./telemetry";
@@ -58,6 +59,7 @@ function isTuiContext(ctx: ExtensionContext): boolean {
 export default function (pi: ExtensionAPI) {
 	const state: FooterState = createInitialState(emptyGitStatus());
 	const sessionLifecycle = new SessionLifecycle();
+	const skillActivity = new SkillActivityTracker();
 
 	let currentConfig: PolishedTuiConfig = loadConfig();
 	let requestFooterRender: (() => void) | undefined;
@@ -76,6 +78,31 @@ export default function (pi: ExtensionAPI) {
 	const getCurrentConfig = () => currentConfig;
 	const syncFooterState = (ctx: ExtensionContext) =>
 		syncState(state, ctx, currentConfig.icons.cacheHit);
+	const availableSkillReferences = (promptSkills: readonly Skill[] = []): SkillReference[] => {
+		const byName = new Map<string, SkillReference>();
+		try {
+			for (const command of pi.getCommands()) {
+				if (command.source !== "skill" || !command.name.startsWith("skill:")) continue;
+				const name = command.name.slice("skill:".length);
+				if (name && command.sourceInfo.path) {
+					byName.set(name, { name, filePath: command.sourceInfo.path });
+				}
+			}
+		} catch {}
+		for (const skill of promptSkills) {
+			byName.set(skill.name, { name: skill.name, filePath: skill.filePath });
+		}
+		return [...byName.values()];
+	};
+	const updateSkillCounts = (ctx: ExtensionContext, promptSkills: readonly Skill[] = []) => {
+		skillActivity.syncAvailable(availableSkillReferences(promptSkills), ctx.cwd);
+		state.skillCounts = skillActivity.counts();
+	};
+	const restoreSkillActivity = (ctx: ExtensionContext) => {
+		updateSkillCounts(ctx);
+		skillActivity.restoreFromEntries(ctx.sessionManager.getBranch(), ctx.cwd);
+		state.skillCounts = skillActivity.counts();
+	};
 
 	type ProjectRefreshTarget = { cwd: string; generation: number };
 	const refreshProjectState = async ({ cwd, generation }: ProjectRefreshTarget) => {
@@ -243,6 +270,8 @@ export default function (pi: ExtensionAPI) {
 		sessionLifecycle.start();
 		activeSessionContext = ctx;
 		liveContext.clear();
+		skillActivity.reset();
+		restoreSkillActivity(ctx);
 		state.sessionStartEpoch = Date.now();
 		state.codexUsageStatus = undefined;
 		state.telemetry = resetTelemetryState(state.telemetry, {
@@ -253,6 +282,21 @@ export default function (pi: ExtensionAPI) {
 		invalidateUsageTotalsCache();
 		lastProjectCwd = undefined;
 		installUi(ctx);
+	});
+
+	pi.on("resources_discover", (_event, ctx) => {
+		sessionLifecycle.defer(() => {
+			if (ctx !== activeSessionContext) return;
+			updateSkillCounts(ctx);
+			refresh();
+		});
+	});
+
+	pi.on("before_agent_start", (event, ctx) => {
+		updateSkillCounts(ctx, event.systemPromptOptions.skills ?? []);
+		skillActivity.activateFromPrompt(event.prompt, ctx.cwd);
+		state.skillCounts = skillActivity.counts();
+		refreshInteractiveState(ctx);
 	});
 
 	registerEffortCommand(pi);
@@ -393,6 +437,15 @@ export default function (pi: ExtensionAPI) {
 		syncInteractiveState(event, ctx);
 	});
 	pi.on("tool_execution_end", (event, ctx) => {
+		if (!event.isError && event.toolName === "read") {
+			const path = event.args && typeof event.args === "object"
+				? (event.args as Record<string, unknown>).path
+				: undefined;
+			if (typeof path === "string") {
+				skillActivity.activateFromRead(path, ctx.cwd);
+				state.skillCounts = skillActivity.counts();
+			}
+		}
 		state.telemetry = updateTelemetryState(state.telemetry, {
 			type: "tool-result",
 			toolCallId: event.toolCallId,
@@ -407,6 +460,7 @@ export default function (pi: ExtensionAPI) {
 	});
 	pi.on("session_tree", (event, ctx) => {
 		liveContext.clear();
+		restoreSkillActivity(ctx);
 		syncInteractiveAndProjectStateWithUsage(event, ctx);
 	});
 }

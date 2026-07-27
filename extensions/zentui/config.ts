@@ -84,6 +84,7 @@ export type FooterSegmentsConfig = {
 	cacheDetails: boolean;
 	codexUsage: boolean;
 	configCounts: boolean;
+	skills: boolean;
 	mcp: boolean;
 	toolActivity: boolean;
 	agentActivity: boolean;
@@ -200,6 +201,7 @@ export const FOOTER_FORMAT_VARIABLES = [
 	"agents_files",
 	"claude_files",
 	"skills",
+	"active_skills",
 	"extensions",
 	"mcp",
 	"tool_counts",
@@ -294,6 +296,7 @@ export const defaultConfig: PolishedTuiConfig = {
 		cacheDetails: true,
 		codexUsage: true,
 		configCounts: false,
+		skills: true,
 		mcp: true,
 		toolActivity: true,
 		agentActivity: true,
@@ -513,6 +516,7 @@ function normalizeFooterSegments(record: Record<string, unknown>): FooterSegment
 		cacheDetails: footerSegmentValue(record, "cacheDetails"),
 		codexUsage: footerSegmentValue(record, "codexUsage"),
 		configCounts: footerSegmentValue(record, "configCounts"),
+		skills: footerSegmentValue(record, "skills"),
 		mcp: footerSegmentValue(record, "mcp"),
 		toolActivity: footerSegmentValue(record, "toolActivity"),
 		agentActivity: footerSegmentValue(record, "agentActivity"),
@@ -619,6 +623,7 @@ function isFooterSegmentKey(value: string): value is keyof FooterSegmentsConfig 
 		value === "cacheDetails" ||
 		value === "codexUsage" ||
 		value === "configCounts" ||
+		value === "skills" ||
 		value === "mcp" ||
 		value === "toolActivity" ||
 		value === "agentActivity"

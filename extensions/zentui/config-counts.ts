@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { opendirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
 export interface ConfigCounts {
@@ -8,7 +8,6 @@ export interface ConfigCounts {
 		claudeMd: number;
 		total: number;
 	};
-	skills: number;
 	packages: number;
 }
 
@@ -21,7 +20,6 @@ export interface ConfigCountOptions {
 
 const require = createRequire(import.meta.url);
 const MAX_SETTINGS_BYTES = 1024 * 1024;
-const MAX_SKILL_ENTRIES = 10_000;
 
 function getPiAgentDir(): string {
 	try {
@@ -56,29 +54,6 @@ function countTopLevelFile(cwd: string, name: string): number {
 	}
 }
 
-function countSkills(agentDir: string): number {
-	if (!agentDir) return 0;
-	let directory: ReturnType<typeof opendirSync> | undefined;
-	try {
-		directory = opendirSync(join(agentDir, "skills"));
-		let count = 0;
-		let scanned = 0;
-		while (scanned < MAX_SKILL_ENTRIES) {
-			const entry = directory.readSync();
-			if (!entry) break;
-			scanned += 1;
-			if (!entry.name.startsWith(".")) count += 1;
-		}
-		return count;
-	} catch {
-		return 0;
-	} finally {
-		try {
-			directory?.closeSync();
-		} catch {}
-	}
-}
-
 function countPackages(agentDir: string): number {
 	if (!agentDir) return 0;
 	try {
@@ -105,7 +80,6 @@ export function countConfigEntries(cwd: string, options: ConfigCountOptions = {}
 			claudeMd,
 			total: agentsMd + claudeMd,
 		},
-		skills: countSkills(agentDir),
 		packages: countPackages(agentDir),
 	};
 }

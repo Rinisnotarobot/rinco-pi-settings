@@ -4,33 +4,34 @@
 
 | 配置键 | 默认 | 位置 | 说明 |
 | --- | --- | --- | --- |
-| `os` | 开 | 左上 | 按平台显示 macOS、Linux 或 Windows 图标/文本 |
-| `username` | 关 | 左上 | `user@hostname` |
-| `cwd` | 开 | 左上 | 当前工作目录，可显示 basename 或完整路径 |
-| `gitBranch` | 开 | 左上 | 分支名；detached HEAD 时显示 `HEAD` |
-| `gitStatus` | 开 | 左上 | 冲突、暂存、修改、未跟踪、stash、ahead/behind 等 |
+| `os` | 开 | 第一行 | 按平台显示 macOS、Linux 或 Windows 图标/文本 |
+| `username` | 关 | 第一行 | `user@hostname` |
+| `cwd` | 开 | 第一行 | 当前工作目录，可显示 basename 或完整路径 |
+| `gitBranch` | 开 | 第一行 | 分支名；detached HEAD 时显示 `HEAD` |
+| `gitStatus` | 开 | 第一行 | 冲突、暂存、修改、未跟踪、stash、ahead/behind 等 |
 | `gitCounts` | 关 | 附属 | 为 ahead/behind 和 stash 显示数值，依赖 Git status |
-| `gitCommit` | 关 | 左上 | Commit 短哈希及可选精确匹配标签 |
-| `gitMetrics` | 关 | 左上 | `git diff HEAD --numstat` 汇总的新增/删除行数 |
-| `packageVersion` | 关 | 左上 | 项目清单声明的版本 |
-| `runtime` | 开 | 左上 | 检测到的语言/构建系统及本机工具版本 |
-| `configCounts` | 关 | 左上 | 指令文件、Skills、已安装 Pi packages 数量 |
-| `sessionName` | 开 | 右上 | 当前 Pi Session 名称 |
-| `model` | 开 | 右上 | Provider 与 Model ID |
-| `thinking` | 开 | 右上 | 支持 reasoning 时显示 Thinking level |
-| `turnCount` | 开 | 右上 | 当前 Turn index |
-| `sessionDuration` | 关 | 右上 | 当前会话持续时间 |
-| `time` | 关 | 右上 | 当前时间 `HH:MM` |
-| `toolActivity` | 开 | 左下 | Native Tool 完成次数或最近运行状态 |
-| `agentActivity` | 开 | 左下 | 当前主 Agent run 数，不等同于 Subagent 数 |
-| `context` | 开 | 右下 | Context 百分比、窗口大小和/或 Gauge |
-| `tokens` | 开 | 右下 | 输入、输出、Cache 等 Token 汇总 |
-| `cacheDetails` | 开 | 右下 | 累计 Cache read/write Token |
-| `cost` | 开 | 右下 | Session entries 中累计费用 |
-| `codexUsage` | 开 | 右下 | Codex 订阅 5h/weekly 剩余额度 |
-| `mcp` | 开 | 右下 | MCP 已连接/总 Server 数 |
+| `gitCommit` | 关 | 第一行 | Commit 短哈希及可选精确匹配标签 |
+| `gitMetrics` | 关 | 第一行 | `git diff HEAD --numstat` 汇总的新增/删除行数 |
+| `packageVersion` | 关 | 第一行 | 项目清单声明的版本 |
+| `runtime` | 开 | 第一行 | 检测到的语言/构建系统及本机工具版本 |
+| `configCounts` | 关 | 第一行 | 指令文件、已安装 Pi packages 数量 |
+| `sessionName` | 开 | 第二行 | 当前 Pi Session 名称 |
+| `model` | 开 | 第二行 | Provider 与 Model ID |
+| `thinking` | 开 | 第二行 | 支持 reasoning 时显示 Thinking level |
+| `turnCount` | 开 | 第二行 | 当前 Turn index |
+| `skills` | 开 | 第二行 | 当前 Session 已激活/可用 Skill 数量，例如 `★ 1/3` |
+| `mcp` | 开 | 第二行 | MCP 已连接/总 Server 数 |
+| `toolActivity` | 开 | 第二行 | Native Tool 完成次数或最近运行状态 |
+| `agentActivity` | 开 | 第二行 | 当前主 Agent run 数，不等同于 Subagent 数 |
+| `context` | 开 | 第三行 | Context 百分比、窗口大小和/或 Gauge |
+| `tokens` | 开 | 第三行 | 输入、输出、Cache 等 Token 汇总 |
+| `cacheDetails` | 开 | 第三行 | 累计 Cache read/write Token |
+| `cost` | 开 | 第三行 | Session entries 中累计费用 |
+| `codexUsage` | 开 | 第三行 | Codex 订阅 5h/weekly 剩余额度 |
+| `sessionDuration` | 关 | 第三行 | 当前会话持续时间 |
+| `time` | 关 | 第三行 | 当前时间 `HH:MM` |
 
-空 `footerFormat` 使用语义四区双行布局：左上为项目环境、右上为会话模型、左下为执行活动、右下为用量与服务。设置非空 `footerFormat` 后继续使用兼容的单行模板布局，模板变量决定内置内容；其他扩展状态仍按 placement 合并到该行。
+空 `footerFormat` 使用分类左对齐三行布局：`⌂ 项目`、`λ 会话`、`◉ 用量`。MCP 位于第二行；设置非空 `footerFormat` 后继续使用兼容的单行模板布局，模板变量决定内置内容。其他扩展状态按 placement 的 left、middle、right 顺序追加到第二行。
 
 ## Git 状态
 
@@ -130,12 +131,14 @@ Token 和费用从当前 Session 的 Assistant entries 累计，包括 input、o
 
 MCP 状态从其他扩展发布的 `mcp` Footer status 中非侵入式解析，支持 `MCP: connected/total servers`。解析成功且专用 MCP 状态段可见时，不重复显示原始 status；解析失败则保留原始扩展状态。
 
-### 配置统计
+### Skill 与配置统计
 
+- Skill 总数来自 Pi 当前实际发现的 Skill 资源，覆盖全局、项目、Package、Settings、CLI 与扩展动态资源；
+- 同一 Session 中通过 `/skill:name` 展开，或由 Agent 成功读取对应 Skill 文件后，该 Skill 计为已激活；
+- 激活状态按当前 Session branch 恢复，重复读取同一 Skill 只计一次；
 - 当前 cwd 顶层 `AGENTS.md` 与 `CLAUDE.md` 分开统计；
-- Skills 来自 Pi Agent 目录的 `skills/` 直接非隐藏子项；
 - Extensions 数来自 Pi Agent 目录 `settings.json#packages`；
-- 统计随项目刷新更新，不在 Footer render 中读文件。
+- 文件统计随项目刷新更新，不在 Footer render 中读文件。
 
 ### Codex 订阅用量
 
@@ -223,7 +226,8 @@ MCP 状态从其他扩展发布的 `mcp` Footer status 中非侵入式解析，�
 | `$instruction_files` | `AGENTS.md` + `CLAUDE.md` 总数 |
 | `$agents_files` | `AGENTS.md` 数量 |
 | `$claude_files` | `CLAUDE.md` 数量 |
-| `$skills` | Skills 数量 |
+| `$skills` | 已激活/可用 Skill 数量，例如 `★ 1/3` |
+| `$active_skills` | 仅已激活 Skill 数量 |
 | `$extensions` | 已安装 Pi packages 数量 |
 | `$mcp` | MCP connected/total |
 | `$tool_counts` | Native Tool 完成次数 |
@@ -275,7 +279,7 @@ $cwd( $git_branch)( $git_commit)( $git_metrics)( $package)( $runtime)$fill$conte
 
 Footer 会读取 Pi 的 `footerData.getExtensionStatuses()`：
 
-- placement：`off`、`left`、`middle`、`right`；
+- placement：`off`、`left`、`middle`、`right`；空模板时决定第二行的追加顺序，非空模板时决定实际对齐区域；
 - color mode：`zentui` 或 `original`；
 - 同一位置按状态 key 排序；
 - `zentui` 使用统一的 `extensionStatus` 颜色；
@@ -284,21 +288,24 @@ Footer 会读取 Pi 的 `footerData.getExtensionStatuses()`：
 
 `/zentui` 的 **Extension segments** 只列出当前活跃状态。未命中预设或用户覆盖的 key 默认 placement 为 `right`；源码预设中 `dual-subscription-quota` 位于 `left`、`codex-goal` 位于 `middle`、`xai-usage` 位于 `right`。
 
-## 双行布局与窄终端行为
+## 三行布局与窄终端行为
 
-空 `footerFormat` 时 Footer 输出两行：
+空 `footerFormat` 时 Footer 输出三行：
 
 ```text
- cwd · git · runtime                 session · model · thinking
- tools · agents                 context · tokens · cache · MCP
+⌂ 项目 · pi-sakura ·  main ·  24.18
+λ 会话 · gpt-5.3 · high · ↺ 8 · ★ 2/3 · ⊕ 2/2
+◉ 用量 · 35%/200k · ↑ 4.2k · ↓ 1.1k · $ 0.030
 ```
+
+计数类状态会在符号和数字之间保留间隙，例如 `↺ 3`、`↑ 4.2k`、`read × 2`、`⇡ 1`，避免连续 glyph 和数字挤在一起。
 
 每一行都独立计算可见宽度：
 
-1. 上行聚合项目环境与会话模型，下行聚合执行活动与用量服务；
-2. 左右区域能同时放下时使用空格对齐到两端；
-3. 空间不足时分别为左右区域分配预算并安全截断；
-4. 其他扩展状态按 placement 合并到下行，`middle` 在左右之间居中；
+1. 三行分别使用固定分类标识，所有状态从左向右排列，不做左右拉伸；
+2. 第一行聚合项目与环境，第二行聚合会话、执行活动与 MCP，第三行聚合用量与服务；
+3. 其他扩展状态按 placement 的 left、middle、right 顺序追加到第二行；
+4. 空间不足时在当前行末尾安全截断并显示省略号；
 5. 每行最终按终端可见宽度再次截断。
 
 非空 `footerFormat` 保持原有单行行为。若窄终端信息过多，建议关闭低优先级状态段或使用更短的模板。

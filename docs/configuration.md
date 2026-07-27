@@ -81,6 +81,7 @@
     "cacheDetails": true,
     "codexUsage": true,
     "configCounts": false,
+    "skills": true,
     "mcp": true,
     "toolActivity": true,
     "agentActivity": true,
@@ -147,6 +148,7 @@
     "cacheDetails": true,
     "codexUsage": true,
     "configCounts": false,
+    "skills": true,
     "mcp": true,
     "toolActivity": true,
     "agentActivity": true
@@ -154,7 +156,7 @@
 }
 ```
 
-所有状态沿用 Sakura Zentui 的颜色配置，不引入独立 Shannon/Monokai 配色。空 `footerFormat` 使用语义四区双行 Footer；`configCounts` 默认关闭以控制上行宽度，其余状态在有值时显示。非空 `footerFormat` 保持单行模板行为，也可以只引用所需变量。
+所有状态沿用 Sakura Zentui 的颜色配置，不引入独立 Shannon/Monokai 配色。空 `footerFormat` 使用 `⌂ 项目`、`λ 会话`、`◉ 用量` 分类左对齐三行 Footer，MCP 位于第二行；`configCounts` 默认关闭以控制首行宽度，`skills` 默认开启并显示当前 Session 的已激活/可用 Skill 数量，其余状态在有值时显示。计数类符号与数字之间保留空格。非空 `footerFormat` 保持单行模板行为，也可以只引用所需变量。
 
 > `defaultConfig` 与缺少配置文件时的 `mergeConfig({})` 保持一致：30000ms、空模板和 `auto` 图标模式。
 
@@ -305,7 +307,7 @@ gitMetricsAdded, gitMetricsDeleted, username, time, os
 }
 ```
 
-- placement：`off`、`left`、`middle`、`right`；
+- placement：`off`、`left`、`middle`、`right`；空模板时决定第二行的追加顺序，非空模板时仍决定实际对齐区域；
 - color mode：`zentui`、`original`；
 - 未命中 `placements` 的 key 使用 `defaultPlacement`，未命中 `colorModes` 的 key 使用 `zentui`；
 - 运行时默认预设为 `dual-subscription-quota → left`、`codex-goal → middle`、`xai-usage → right`；
@@ -315,7 +317,7 @@ gitMetricsAdded, gitMetricsDeleted, username, time, os
 
 Codex 订阅查询目前使用固定行为而不是独立配置对象：仅 `openai-codex` Model 自动查询，15 秒超时、5 分钟缓存/刷新，Pi Auth 失败后允许 Codex CLI fallback。可用 `footerSegments.codexUsage` 控制内置显示，或使用 `$codex_usage` 模板变量；`/codex-status --no-statusline` 只显示报告。
 
-MCP 专用段只解析其他扩展发布的公开 Footer status，不替换 `ctx.ui.setStatus()`。配置统计使用 Pi 的 Agent directory，并容错处理缺失或损坏的 settings。
+MCP 专用段只解析其他扩展发布的公开 Footer status，不替换 `ctx.ui.setStatus()`。Skill 总数来自 Pi 当前发现的资源，激活数来自当前 Session branch 中展开或成功读取的 Skill；其他配置统计使用 Pi 的 Agent directory，并容错处理缺失或损坏的 settings。
 
 ## 手工恢复
 

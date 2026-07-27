@@ -13,6 +13,10 @@ import {
 import { countConfigEntries } from "../extensions/zentui/config-counts.ts";
 import { parseMcpStatus } from "../extensions/zentui/mcp-status.ts";
 import { __test__ as packageVersionTest } from "../extensions/zentui/package-version.ts";
+import {
+	formatSkillCounts,
+	SkillActivityTracker,
+} from "../extensions/zentui/skill-activity.ts";
 
 test("telemetry updates metadata without mutating prior state and resets session data", () => {
 	const initial = createTelemetryState();
@@ -197,27 +201,85 @@ test("agent end completes the most recently started running agent", () => {
 	assert.equal(state.agentRuns[0]?.endTime, 40);
 });
 
+test("skill activity tracks distinct available and activated skills", () => {
+	const cwd = "/workspace/project";
+	const tracker = new SkillActivityTracker();
+	tracker.syncAvailable([
+		{ name: "alpha", filePath: `${cwd}/.agents/skills/alpha/SKILL.md` },
+		{ name: "beta", filePath: `${cwd}/.agents/skills/beta/SKILL.md` },
+		{ name: "alpha", filePath: `${cwd}/duplicate/SKILL.md` },
+	], cwd);
+
+	assert.deepEqual(tracker.counts(), { total: 2, active: 0 });
+	assert.equal(tracker.activateFromRead("@.agents/skills/alpha/SKILL.md", cwd), true);
+	assert.deepEqual(tracker.counts(), { total: 2, active: 1 });
+	assert.equal(tracker.activateFromRead(".agents/skills/alpha/SKILL.md", cwd), false);
+	assert.equal(
+		tracker.activateFromPrompt(
+			`<skill name="beta" location="${cwd}/.agents/skills/beta/SKILL.md">\nbody\n</skill>`,
+			cwd,
+		),
+		true,
+	);
+	assert.deepEqual(tracker.counts(), { total: 2, active: 2 });
+	assert.equal(formatSkillCounts(tracker.counts()!), "★ 2/2");
+	assert.equal(formatSkillCounts({ total: 0, active: 0 }), "");
+});
+
+test("skill activity restores successful reads and explicit skill prompts from a session branch", () => {
+	const cwd = "/workspace/project";
+	const skillPath = (name: string) => `${cwd}/skills/${name}/SKILL.md`;
+	const tracker = new SkillActivityTracker();
+	tracker.syncAvailable(["alpha", "beta", "gamma"].map((name) => ({
+		name,
+		filePath: skillPath(name),
+	})), cwd);
+
+	tracker.restoreFromEntries([
+		{
+			type: "message",
+			message: {
+				role: "assistant",
+				content: [
+					{ type: "toolCall", id: "read-alpha", name: "read", arguments: { path: skillPath("alpha") } },
+					{ type: "toolCall", id: "read-beta", name: "read", arguments: { path: skillPath("beta") } },
+				],
+			},
+		},
+		{ type: "message", message: { role: "toolResult", toolCallId: "read-alpha", toolName: "read", isError: false } },
+		{ type: "message", message: { role: "toolResult", toolCallId: "read-beta", toolName: "read", isError: true } },
+		{
+			type: "message",
+			message: {
+				role: "user",
+				content: [{
+					type: "text",
+					text: `<skill name="gamma" location="${skillPath("gamma")}">\nbody\n</skill>`,
+				}],
+			},
+		},
+	], cwd);
+
+	assert.deepEqual(tracker.counts(), { total: 3, active: 2 });
+});
+
 test("config counts tolerate missing files and use a custom agent directory", async (t) => {
 	const root = await mkdtemp(join(tmpdir(), "zentui-counts-"));
 	t.after(() => rm(root, { recursive: true, force: true }));
 	const cwd = join(root, "project");
 	const agentDir = join(root, "custom-agent");
 	await mkdir(cwd, { recursive: true });
-	await mkdir(join(agentDir, "skills", "visible-skill"), { recursive: true });
-	await mkdir(join(agentDir, "skills", ".hidden-skill"), { recursive: true });
-	await writeFile(join(agentDir, "skills", "README.txt"), "direct item");
+	await mkdir(agentDir, { recursive: true });
 	await writeFile(join(cwd, "AGENTS.md"), "agents");
 	await writeFile(join(cwd, "CLAUDE.md"), "claude");
 	await writeFile(join(agentDir, "settings.json"), JSON.stringify({ packages: ["one", "two"] }));
 
 	assert.deepEqual(countConfigEntries(cwd, { agentDir }), {
 		instructionFiles: { agentsMd: 1, claudeMd: 1, total: 2 },
-		skills: 2,
 		packages: 2,
 	});
 	assert.deepEqual(countConfigEntries(join(root, "missing-project"), { agentDir: join(root, "missing-agent") }), {
 		instructionFiles: { agentsMd: 0, claudeMd: 0, total: 0 },
-		skills: 0,
 		packages: 0,
 	});
 });
@@ -228,13 +290,12 @@ test("config counts isolate corrupt settings from other counts", async (t) => {
 	const cwd = join(root, "project");
 	const agentDir = join(root, "agent");
 	await mkdir(cwd, { recursive: true });
-	await mkdir(join(agentDir, "skills", "skill"), { recursive: true });
+	await mkdir(agentDir, { recursive: true });
 	await writeFile(join(cwd, "AGENTS.md"), "agents");
 	await writeFile(join(agentDir, "settings.json"), "{not-json");
 
 	assert.deepEqual(countConfigEntries(cwd, { agentDir }), {
 		instructionFiles: { agentsMd: 1, claudeMd: 0, total: 1 },
-		skills: 1,
 		packages: 0,
 	});
 });
@@ -242,7 +303,7 @@ test("config counts isolate corrupt settings from other counts", async (t) => {
 test("config counts call the agent directory provider when no explicit directory is supplied", async (t) => {
 	const root = await mkdtemp(join(tmpdir(), "zentui-provider-"));
 	t.after(() => rm(root, { recursive: true, force: true }));
-	await mkdir(join(root, "skills", "provided"), { recursive: true });
+	await writeFile(join(root, "settings.json"), JSON.stringify({ packages: ["provided"] }));
 	let calls = 0;
 
 	const result = countConfigEntries(root, {
@@ -252,7 +313,7 @@ test("config counts call the agent directory provider when no explicit directory
 		},
 	});
 	assert.equal(calls, 1);
-	assert.equal(result.skills, 1);
+	assert.equal(result.packages, 1);
 });
 
 test("package versions reject terminal controls and oversized values", () => {

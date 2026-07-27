@@ -11,6 +11,7 @@ import {
 import type { GitStatusSummary } from "./git";
 import type { PackageVersionResult } from "./package-version";
 import type { RuntimeInfo } from "./runtime";
+import type { SkillCounts } from "./skill-activity";
 import { createTelemetryState, type TelemetryState } from "./telemetry";
 
 export type FooterState = GitStatusSummary & {
@@ -22,6 +23,7 @@ export type FooterState = GitStatusSummary & {
 	usageTotals: UsageTotals;
 	telemetry: TelemetryState;
 	configCounts: ConfigCounts;
+	skillCounts?: SkillCounts;
 	codexUsageStatus?: string;
 	runtime?: RuntimeInfo;
 	packageVersion?: PackageVersionResult;
@@ -33,15 +35,15 @@ export function createInitialState(gitDefaults: GitStatusSummary): FooterState {
 		modelLabel: "no-model",
 		providerLabel: "Unknown",
 		contextLabel: "--",
-		tokenLabel: "↑0 ↓0",
-			costLabel: "$0.000",
+		tokenLabel: "↑ 0 ↓ 0",
+		costLabel: "$ 0.000",
 		usageTotals: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 },
 		telemetry: createTelemetryState(),
 		configCounts: {
 			instructionFiles: { agentsMd: 0, claudeMd: 0, total: 0 },
-			skills: 0,
 			packages: 0,
 		},
+		skillCounts: undefined,
 		codexUsageStatus: undefined,
 		runtime: undefined,
 		packageVersion: undefined,

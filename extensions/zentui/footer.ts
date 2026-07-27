@@ -1,5 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth } from "@earendil-works/pi-tui";
 import type { PolishedTuiConfig, SeparatorStyle } from "./config";
 import { FOOTER_FORMAT_ALIASES } from "./config";
 import {
@@ -7,6 +7,7 @@ import {
 	sanitizeExtensionStatusText,
 	type ExtensionStatusSegment,
 } from "./extension-status";
+import { composeCategorizedFooterRows, composeFooterContent } from "./footer-layout";
 import { parseFooterFormat, renderFormatSplit, stripOrphanSeparators } from "./footer-format";
 import {
 	buildContextDisplayLabel,
@@ -26,6 +27,7 @@ import {
 import { resolveRuntimeSymbol } from "./icons";
 import type { LiveContextOverride } from "./live-context";
 import { parseMcpStatus } from "./mcp-status";
+import { formatSkillCounts } from "./skill-activity";
 import type { FooterState } from "./state";
 import { renderStyleForSource } from "./style";
 import { getTelemetryStats } from "./telemetry";
@@ -40,164 +42,6 @@ const separatorText: Record<SeparatorStyle, string> = {
 function safeStatusText(value: string | null | undefined, maxLength = 256): string {
 	if (!value) return "";
 	return sanitizeExtensionStatusText(value.slice(0, maxLength * 4)).slice(0, maxLength);
-}
-
-function joinStatusTexts(statusTexts: string[], separator: string): string {
-	return statusTexts.filter(Boolean).join(separator);
-}
-
-function fitStatusTexts(statusTexts: string[], maxWidth: number, separator: string): string {
-	if (maxWidth <= 0) return "";
-
-	const fitted: string[] = [];
-	for (const text of statusTexts) {
-		const candidate = joinStatusTexts([...fitted, text], separator);
-		if (visibleWidth(candidate) <= maxWidth) {
-			fitted.push(text);
-			continue;
-		}
-
-		if (fitted.length === 0) {
-			return maxWidth > 1 ? truncateToWidth(text, maxWidth, "…") : "";
-		}
-		break;
-	}
-
-	return joinStatusTexts(fitted, separator);
-}
-
-function appendStatusArea(base: string, statusText: string, separator: string): string {
-	if (!base) return statusText;
-	if (!statusText) return base;
-	return `${base}${separator}${statusText}`;
-}
-
-function prependStatusArea(base: string, statusText: string, separator: string): string {
-	if (!base) return statusText;
-	if (!statusText) return base;
-	return `${statusText}${separator}${base}`;
-}
-
-function composeBuiltInFooterContent(left: string, right: string, innerWidth: number): string {
-	const leftWidth = visibleWidth(left);
-	const rightWidth = visibleWidth(right);
-	if (!right) return truncateToWidth(left, innerWidth, "");
-	if (!left) {
-		const fittedRight = truncateToWidth(right, innerWidth, "");
-		return `${" ".repeat(Math.max(0, innerWidth - visibleWidth(fittedRight)))}${fittedRight}`;
-	}
-	if (leftWidth + 1 + rightWidth <= innerWidth) {
-		return `${left}${" ".repeat(innerWidth - leftWidth - rightWidth)}${right}`;
-	}
-
-	const gap = innerWidth > 1 ? 1 : 0;
-	const available = Math.max(0, innerWidth - gap);
-	let rightBudget = Math.min(rightWidth, Math.max(0, Math.floor(available * 0.48)));
-	let leftBudget = Math.min(leftWidth, Math.max(0, available - rightBudget));
-	let remaining = Math.max(0, available - leftBudget - rightBudget);
-	const leftExtra = Math.min(remaining, Math.max(0, leftWidth - leftBudget));
-	leftBudget += leftExtra;
-	remaining -= leftExtra;
-	rightBudget += Math.min(remaining, Math.max(0, rightWidth - rightBudget));
-	let fittedLeft = truncateToWidth(left, leftBudget, "");
-	let fittedRight = truncateToWidth(right, rightBudget, "");
-	for (let pass = 0; pass < 2; pass += 1) {
-		let spare = Math.max(
-			0,
-			available - visibleWidth(fittedLeft) - visibleWidth(fittedRight),
-		);
-		if (spare === 0) break;
-		if (visibleWidth(fittedLeft) < leftWidth) {
-			fittedLeft = truncateToWidth(left, visibleWidth(fittedLeft) + spare, "");
-			spare = Math.max(
-				0,
-				available - visibleWidth(fittedLeft) - visibleWidth(fittedRight),
-			);
-		}
-		if (spare > 0 && visibleWidth(fittedRight) < rightWidth) {
-			fittedRight = truncateToWidth(right, visibleWidth(fittedRight) + spare, "");
-		}
-	}
-	const padding = Math.max(0, innerWidth - visibleWidth(fittedLeft) - visibleWidth(fittedRight));
-	return `${fittedLeft}${" ".repeat(padding)}${fittedRight}`;
-}
-
-function composeFooterContent(
-	builtInLeft: string,
-	builtInRight: string,
-	extensionLeft: string[],
-	extensionMiddle: string[],
-	extensionRight: string[],
-	separator: string,
-	innerWidth: number,
-): string {
-	const builtInLeftWidth = visibleWidth(builtInLeft);
-	const builtInRightWidth = visibleWidth(builtInRight);
-	const minimumGap = builtInLeft && builtInRight ? 1 : 0;
-
-	if (builtInLeftWidth + minimumGap + builtInRightWidth > innerWidth) {
-		return composeBuiltInFooterContent(builtInLeft, builtInRight, innerWidth);
-	}
-
-	const available = Math.max(0, innerWidth - builtInLeftWidth - builtInRightWidth - minimumGap);
-	const reservedMiddle = fitStatusTexts(
-		extensionMiddle,
-		Math.max(0, Math.floor(available * 0.4)),
-		separator,
-	);
-	const sideAvailable = Math.max(0, available - visibleWidth(reservedMiddle));
-	let remaining = sideAvailable;
-	const leftConnectorWidth = builtInLeft && extensionLeft.length > 0 ? visibleWidth(separator) : 0;
-	const rightConnectorWidth =
-		builtInRight && extensionRight.length > 0 ? visibleWidth(separator) : 0;
-	let leftStatus = "";
-	let rightStatus = "";
-
-	if (extensionLeft.length > 0 && extensionRight.length > 0) {
-		const leftBudget = Math.max(0, Math.floor(sideAvailable / 2) - leftConnectorWidth);
-		leftStatus = fitStatusTexts(extensionLeft, leftBudget, separator);
-		remaining -= leftStatus ? leftConnectorWidth + visibleWidth(leftStatus) : 0;
-
-		const rightBudget = Math.max(0, remaining - rightConnectorWidth);
-		rightStatus = fitStatusTexts(extensionRight, rightBudget, separator);
-		remaining -= rightStatus ? rightConnectorWidth + visibleWidth(rightStatus) : 0;
-
-		const expandedLeftBudget = Math.max(0, remaining + visibleWidth(leftStatus));
-		const expandedLeftStatus = fitStatusTexts(extensionLeft, expandedLeftBudget, separator);
-		if (visibleWidth(expandedLeftStatus) > visibleWidth(leftStatus)) {
-			remaining += leftStatus ? leftConnectorWidth + visibleWidth(leftStatus) : 0;
-			leftStatus = expandedLeftStatus;
-			remaining -= leftStatus ? leftConnectorWidth + visibleWidth(leftStatus) : 0;
-		}
-	} else if (extensionLeft.length > 0) {
-		leftStatus = fitStatusTexts(
-			extensionLeft,
-			Math.max(0, sideAvailable - leftConnectorWidth),
-			separator,
-		);
-		remaining -= leftStatus ? leftConnectorWidth + visibleWidth(leftStatus) : 0;
-	} else if (extensionRight.length > 0) {
-		rightStatus = fitStatusTexts(
-			extensionRight,
-			Math.max(0, sideAvailable - rightConnectorWidth),
-			separator,
-		);
-		remaining -= rightStatus ? rightConnectorWidth + visibleWidth(rightStatus) : 0;
-	}
-
-	const left = appendStatusArea(builtInLeft, leftStatus, separator);
-	const right = prependStatusArea(builtInRight, rightStatus, separator);
-	const gapWidth = Math.max(0, innerWidth - visibleWidth(left) - visibleWidth(right));
-	const middle = fitStatusTexts(extensionMiddle, gapWidth, separator);
-	const middleWidth = visibleWidth(middle);
-
-	if (!middle || middleWidth <= 0) {
-		return `${left}${" ".repeat(gapWidth)}${right}`;
-	}
-
-	const leftPadding = Math.floor((gapWidth - middleWidth) / 2);
-	const rightPadding = gapWidth - middleWidth - leftPadding;
-	return `${left}${" ".repeat(leftPadding)}${middle}${" ".repeat(rightPadding)}${right}`;
 }
 
 export function installFooter(
@@ -271,6 +115,15 @@ export function installFooter(
 						depth: config.pathDisplay.depth,
 					}),
 				);
+				const cwdValueLabel = renderStyleForSource(
+					theme,
+					colorSource,
+					config.colors.cwd,
+					formatCwdLabel(safeCwd, "", {
+						mode: config.pathDisplay.mode,
+						depth: config.pathDisplay.depth,
+					}),
+				);
 				const branch = safeStatusText(state.branch, 256) || undefined;
 				const branchText = branch
 					? formatGitBranchText(branch, config.gitBranch.maxLength)
@@ -305,7 +158,7 @@ export function installFooter(
 				const stashLabel =
 					state.stashed > 0
 						? gitCounts
-							? `${config.icons.stashed}${state.stashed}`
+							? `${config.icons.stashed} ${state.stashed}`
 							: config.icons.stashed
 						: "";
 				const allStatus = [
@@ -317,30 +170,36 @@ export function installFooter(
 					state.typechanged > 0 ? config.icons.typechanged : "",
 					state.staged > 0 ? config.icons.staged : "",
 					state.untracked > 0 ? config.icons.untracked : "",
-				].join("");
+				]
+					.filter(Boolean)
+					.join(" ");
 				const aheadBehind = (() => {
 					if (state.ahead > 0 && state.behind > 0) {
 						return gitCounts
-							? `${config.icons.ahead}${state.ahead}${config.icons.behind}${state.behind}`
+							? `${config.icons.ahead} ${state.ahead} ${config.icons.behind} ${state.behind}`
 							: config.icons.diverged;
 					}
 					if (state.ahead > 0)
-						return gitCounts ? `${config.icons.ahead}${state.ahead}` : config.icons.ahead;
+						return gitCounts ? `${config.icons.ahead} ${state.ahead}` : config.icons.ahead;
 					if (state.behind > 0)
-						return gitCounts ? `${config.icons.behind}${state.behind}` : config.icons.behind;
+						return gitCounts ? `${config.icons.behind} ${state.behind}` : config.icons.behind;
 					return "";
 				})();
-				const statusBlock =
-					allStatus || aheadBehind ? gitStatusColor(`[${allStatus}${aheadBehind}]`) : "";
+				const gitStatusText = [allStatus, aheadBehind].filter(Boolean).join(" ");
+				const statusBlock = gitStatusText ? gitStatusColor(`[${gitStatusText}]`) : "";
 				const gitStateLabel = safeStatusText(state.gitStateLabel, 64);
 				const gitStateBlock = gitStateLabel ? gitStatusColor(gitStateLabel) : "";
 				const statusStyle = (style: string, text: string) =>
 					text ? renderStyleForSource(theme, colorSource, style, text) : "";
+				const projectCategoryLabel = statusStyle(config.colors.cwd, "⌂ 项目");
+				const sessionCategoryLabel = statusStyle(config.colors.runtimePrefix, "λ 会话");
+				const usageCategoryLabel = statusStyle(config.colors.contextNormal, "◉ 用量");
 				const sessionName = safeStatusText(state.telemetry.sessionName, 256);
 				const sessionNameLabel = statusStyle(config.colors.gitBranch, sessionName ? `◈ ${sessionName}` : "");
 				const providerId = safeStatusText(ctx.model?.provider, 128);
 				const modelId = safeStatusText(ctx.model?.id, 256);
 				const modelText = providerId && modelId ? `${providerId}/${modelId}` : modelId || providerId;
+				const modelValueLabel = statusStyle(config.colors.runtimePrefix, modelText);
 				const modelStatusLabel = statusStyle(config.colors.runtimePrefix, modelText ? `λ ${modelText}` : "");
 				const thinkingLabel = state.telemetry.modelSupportsReasoning
 					? statusStyle(
@@ -350,16 +209,16 @@ export function installFooter(
 					: "";
 				const turnLabel =
 					state.telemetry.turnIndex > 0
-						? statusStyle(config.colors.extensionStatus, `↺×${state.telemetry.turnIndex}`)
+						? statusStyle(config.colors.extensionStatus, `↺ ${state.telemetry.turnIndex}`)
 						: "";
 				const cacheReadLabel = state.usageTotals.cacheRead > 0
-					? statusStyle(config.colors.tokens, `R${formatCount(state.usageTotals.cacheRead)}`)
+					? statusStyle(config.colors.tokens, `R ${formatCount(state.usageTotals.cacheRead)}`)
 					: "";
 				const cacheWriteLabel = state.usageTotals.cacheWrite > 0
-					? statusStyle(config.colors.tokens, `W${formatCount(state.usageTotals.cacheWrite)}`)
+					? statusStyle(config.colors.tokens, `W ${formatCount(state.usageTotals.cacheWrite)}`)
 					: "";
 				const cacheHitLabel = state.usageTotals.latestCacheHitRate !== undefined
-					? statusStyle(config.colors.contextNormal, `CH${state.usageTotals.latestCacheHitRate.toFixed(1)}%`)
+					? statusStyle(config.colors.contextNormal, `CH ${state.usageTotals.latestCacheHitRate.toFixed(1)}%`)
 					: "";
 				const cacheDetailsLabel = [cacheReadLabel, cacheWriteLabel].filter(Boolean).join(" ");
 				const codexStyle = state.codexUsageStatus === "checking"
@@ -372,7 +231,7 @@ export function installFooter(
 					state.codexUsageStatus ? `◉ ${safeStatusText(state.codexUsageStatus, 256)}` : "",
 				);
 				const instructionFilesLabel = state.configCounts.instructionFiles.total > 0
-					? statusStyle(config.colors.runtimePrefix, `※×${state.configCounts.instructionFiles.total}`)
+					? statusStyle(config.colors.runtimePrefix, `※ ${state.configCounts.instructionFiles.total}`)
 					: "";
 				const agentsFilesLabel = state.configCounts.instructionFiles.agentsMd > 0
 					? statusStyle(config.colors.runtimePrefix, String(state.configCounts.instructionFiles.agentsMd))
@@ -380,13 +239,18 @@ export function installFooter(
 				const claudeFilesLabel = state.configCounts.instructionFiles.claudeMd > 0
 					? statusStyle(config.colors.runtimePrefix, String(state.configCounts.instructionFiles.claudeMd))
 					: "";
-				const skillsLabel = state.configCounts.skills > 0
-					? statusStyle(config.colors.extensionStatus, `★×${state.configCounts.skills}`)
+				const skillCounts = state.skillCounts ?? { total: 0, active: 0 };
+				const skillsLabel = statusStyle(
+					config.colors.extensionStatus,
+					formatSkillCounts(skillCounts),
+				);
+				const activeSkillsLabel = skillCounts.total > 0
+					? statusStyle(config.colors.extensionStatus, String(skillCounts.active))
 					: "";
 				const extensionsLabel = state.configCounts.packages > 0
-					? statusStyle(config.colors.sessionDuration, `◈×${state.configCounts.packages}`)
+					? statusStyle(config.colors.sessionDuration, `◈ ${state.configCounts.packages}`)
 					: "";
-				const configCountsLabel = [instructionFilesLabel, skillsLabel, extensionsLabel]
+				const configCountsLabel = [instructionFilesLabel, extensionsLabel]
 					.filter(Boolean)
 					.join(" ");
 				const mcpLabel = mcpStatus
@@ -395,18 +259,18 @@ export function installFooter(
 				const telemetryStats = getTelemetryStats(state.telemetry);
 				const toolCountsText = Object.entries(telemetryStats.completedToolCounts)
 					.filter(([, count]) => count > 0)
-					.map(([tool, count]) => `${tool}${count > 1 ? `×${count}` : ""}`)
+					.map(([tool, count]) => `${tool}${count > 1 ? ` × ${count}` : ""}`)
 					.join(" ");
 				const toolCountsLabel = statusStyle(config.colors.contextNormal, toolCountsText);
 				const runningToolsText = telemetryStats.recentRunningTools
 					.map((tool) => {
 						const target = tool.target ? `:${truncateToWidth(tool.target, 18, "…")}` : "";
-						return `↻ ${tool.name}${target}(${buildSessionDurationLabel(tool.startTime)})`;
+						return `↻ ${tool.name}${target} (${buildSessionDurationLabel(tool.startTime)})`;
 					})
 					.join(" ");
 				const runningToolsLabel = statusStyle(config.colors.contextWarning, runningToolsText);
 				const activeAgentsLabel = telemetryStats.activeAgentRuns > 0
-					? statusStyle(config.colors.extensionStatus, `↻ agent×${telemetryStats.activeAgentRuns}`)
+					? statusStyle(config.colors.extensionStatus, `↻ agent × ${telemetryStats.activeAgentRuns}`)
 					: statusStyle(config.colors.muted, "agent idle");
 				const renderVariable = (name: string): string => {
 					const canonical = FOOTER_FORMAT_ALIASES[name] ?? name;
@@ -526,7 +390,7 @@ export function installFooter(
 										theme,
 										colorSource,
 										config.colors.gitMetricsAdded,
-										`+${state.metrics.added}`,
+										`+ ${state.metrics.added}`,
 									)
 								: "";
 						case "git_deleted":
@@ -535,7 +399,7 @@ export function installFooter(
 										theme,
 										colorSource,
 										config.colors.gitMetricsDeleted,
-										`−${state.metrics.deleted}`,
+										`− ${state.metrics.deleted}`,
 									)
 								: "";
 						case "session_name":
@@ -566,6 +430,8 @@ export function installFooter(
 							return claudeFilesLabel;
 						case "skills":
 							return skillsLabel;
+						case "active_skills":
+							return activeSkillsLabel;
 						case "extensions":
 							return extensionsLabel;
 						case "mcp":
@@ -683,36 +549,31 @@ export function installFooter(
 							formatTimeLabel(config.icons.time),
 						)
 					: "";
-				const upperLeft = [
-					osSegment,
-					usernameSegment,
-					config.footerSegments.cwd ? cwdLabel : "",
+				const projectSegments = [
+					projectCategoryLabel,
+					config.footerSegments.cwd ? cwdValueLabel : "",
 					branchLabel,
 					gitCommitLabel,
 					gitMetricsLabel,
 					packageVersionLabel,
 					runtimeLabel,
 					config.footerSegments.configCounts ? configCountsLabel : "",
-				]
-					.filter(Boolean)
-					.join(" ");
-				const upperRight = [
+					osSegment,
+					usernameSegment,
+				].filter(Boolean);
+				const sessionSegments = [
+					sessionCategoryLabel,
 					config.footerSegments.sessionName ? sessionNameLabel : "",
-					config.footerSegments.model ? modelStatusLabel : "",
+					config.footerSegments.model ? modelValueLabel : "",
 					config.footerSegments.thinking ? thinkingLabel : "",
 					config.footerSegments.turnCount ? turnLabel : "",
-					sessionDurationSegment,
-					timeSegment,
-				]
-					.filter(Boolean)
-					.join(separator);
-				const lowerLeft = [
+					config.footerSegments.skills ? skillsLabel : "",
+					config.footerSegments.mcp ? mcpLabel : "",
 					config.footerSegments.toolActivity ? runningToolsLabel || toolCountsLabel : "",
 					config.footerSegments.agentActivity ? activeAgentsLabel : "",
-				]
-					.filter(Boolean)
-					.join(separator);
-				const lowerRight = [
+				].filter(Boolean);
+				const usageSegments = [
+					usageCategoryLabel,
 					config.footerSegments.context
 						? renderStyleForSource(theme, colorSource, contextColor, contextLabel)
 						: "",
@@ -724,10 +585,9 @@ export function installFooter(
 						? renderStyleForSource(theme, colorSource, config.colors.cost, state.costLabel)
 						: "",
 					config.footerSegments.codexUsage ? codexUsageLabel : "",
-					config.footerSegments.mcp ? mcpLabel : "",
-				]
-					.filter(Boolean)
-					.join(separator);
+					sessionDurationSegment,
+					timeSegment,
+				].filter(Boolean);
 
 				const formatNeedsMcp = /\$\{?mcp\b/.test(config.footerFormat);
 				const dedicatedMcpVisible = Boolean(
@@ -768,17 +628,21 @@ export function installFooter(
 					return [frame(content)];
 				}
 
-				const upperContent = composeBuiltInFooterContent(upperLeft, upperRight, innerWidth);
-				const lowerContent = composeFooterContent(
-					lowerLeft,
-					lowerRight,
-					extensionLeft,
-					extensionMiddle,
-					extensionRight,
+				const contents = composeCategorizedFooterRows(
+					{
+						project: projectSegments,
+						session: [
+							...sessionSegments,
+							...extensionLeft,
+							...extensionMiddle,
+							...extensionRight,
+						],
+						usage: usageSegments,
+					},
 					separator,
 					innerWidth,
 				);
-				return [frame(upperContent), frame(lowerContent)];
+				return contents.map(frame);
 			},
 		};
 	});

@@ -62,10 +62,10 @@ export function formatGitMetricsSegment(
 	if (!showAdded && !showDeleted) return "";
 	const parts: string[] = [];
 	if (showAdded) {
-		parts.push(renderStyleForSource(theme, colorSource, addedStyle, `+${metrics.added}`));
+		parts.push(renderStyleForSource(theme, colorSource, addedStyle, `+ ${metrics.added}`));
 	}
 	if (showDeleted) {
-		parts.push(renderStyleForSource(theme, colorSource, deletedStyle, `−${metrics.deleted}`));
+		parts.push(renderStyleForSource(theme, colorSource, deletedStyle, `− ${metrics.deleted}`));
 	}
 	return parts.join(" ");
 }
@@ -206,19 +206,19 @@ export function getUsageTotals(ctx: ExtensionContext): UsageTotals {
 
 export function buildTokenLabel(totals: UsageTotals, cacheHitIcon = "󰆼"): string {
 	const parts: string[] = [];
-	if (totals.input) parts.push(`↑${formatCount(totals.input)}`);
-	if (totals.output) parts.push(`↓${formatCount(totals.output)}`);
+	if (totals.input) parts.push(`↑ ${formatCount(totals.input)}`);
+	if (totals.output) parts.push(`↓ ${formatCount(totals.output)}`);
 
 	const hasCacheTokens = totals.cacheRead > 0 || totals.cacheWrite > 0;
 	if (hasCacheTokens && totals.latestCacheHitRate !== undefined) {
 		const cacheHitRate = `${totals.latestCacheHitRate.toFixed(1)}%`;
 		parts.push(cacheHitIcon ? `${cacheHitIcon} ${cacheHitRate}` : cacheHitRate);
 	}
-	return parts.length > 0 ? parts.join(" ") : "↑0 ↓0";
+	return parts.length > 0 ? parts.join(" ") : "↑ 0 ↓ 0";
 }
 
 export function buildCostLabel(totals: UsageTotals): string {
-	return `$${totals.cost.toFixed(3)}`;
+	return `$ ${totals.cost.toFixed(3)}`;
 }
 
 export function buildSessionDurationLabel(startEpoch: number): string {

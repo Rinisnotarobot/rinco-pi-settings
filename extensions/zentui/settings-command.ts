@@ -132,41 +132,43 @@ const footerSegmentSettingLabels: Record<FooterSegmentSettingId, string> = {
 	cacheDetails: "Cache details",
 	codexUsage: "Codex subscription",
 	configCounts: "Config counts",
+	skills: "Skill activity",
 	mcp: "MCP connections",
 	toolActivity: "Tool activity",
 	agentActivity: "Agent run activity",
 };
 
 const footerSegmentSettingDescriptions: Record<FooterSegmentSettingId, string> = {
-	cwd: "Show or hide the current working directory segment on the left.",
-	gitBranch: "Show or hide the git branch name on the left.",
-	gitStatus: "Show or hide git status icons and ahead/behind markers.",
+	cwd: "Show or hide the current working directory on the project row.",
+	gitBranch: "Show or hide the git branch name on the project row.",
+	gitStatus: "Show or hide git status icons and ahead/behind markers on the project row.",
 	gitCounts:
 		"Show numeric ahead/behind and stash counts (requires the Git status segment to be enabled).",
-	sessionDuration: "Show session running time on the left, after the runtime.",
-	username: "Show user@hostname on the left.",
-	time: "Show the current time (HH:MM) on the right.",
-	os: "Show an operating-system icon on the left.",
-	runtime: "Show or hide the detected runtime/language segment on the left.",
-	context: "Show or hide context usage on the right.",
-	tokens: "Show or hide input/output token counts on the right.",
-	cost: "Show or hide session cost on the right.",
+	sessionDuration: "Show session running time on the usage row.",
+	username: "Show user@hostname on the project row.",
+	time: "Show the current time (HH:MM) on the usage row.",
+	os: "Show an operating-system icon on the project row.",
+	runtime: "Show or hide the detected runtime/language on the project row.",
+	context: "Show or hide context usage on the usage row.",
+	tokens: "Show or hide input/output token counts on the usage row.",
+	cost: "Show or hide session cost on the usage row.",
 	packageVersion:
-		"Show the project’s own manifest version (package.json, Cargo.toml, pyproject.toml, …). Distinct from the runtime segment, which shows the installed toolchain version.",
+		"Show the project’s own manifest version (package.json, Cargo.toml, pyproject.toml, …) on the project row. Distinct from the installed toolchain version.",
 	gitCommit:
-		"Show the current commit hash (and optional exact-match tag). On detached HEAD this provides context the branch segment can’t. Starship `git_commit`-style; default off.",
+		"Show the current commit hash and optional exact-match tag on the project row. Starship `git_commit`-style; default off.",
 	gitMetrics:
-		"Show aggregate added/deleted line counts (e.g. `+12 −3`) via `git diff HEAD --numstat`. Complements the git status counts. Starship `git_metrics`-style; default off.",
-	sessionName: "Show the current Pi session name on the left.",
-	model: "Show provider/model information on the right.",
-	thinking: "Show the selected thinking level for reasoning-capable models.",
-	turnCount: "Show the current turn index on the left.",
-	cacheDetails: "Show cumulative cache read/write token totals on the right.",
-	codexUsage: "Show OpenAI Codex subscription rate-limit status when available.",
-	configCounts: "Show instruction files, skills, and installed Pi package counts.",
-	mcp: "Show parsed MCP connected/total server counts.",
-	toolActivity: "Show completed native tool counts and currently running tools.",
-	agentActivity: "Show active main agent runs (not subagent count).",
+		"Show aggregate added/deleted line counts (e.g. `+ 12 − 3`) on the project row via `git diff HEAD --numstat`; default off.",
+	sessionName: "Show the current Pi session name on the session row.",
+	model: "Show provider/model information on the session row.",
+	thinking: "Show the selected thinking level on the session row for reasoning-capable models.",
+	turnCount: "Show the current turn index on the session row.",
+	cacheDetails: "Show cumulative cache read/write token totals on the usage row.",
+	codexUsage: "Show OpenAI Codex subscription rate limits on the usage row when available.",
+	configCounts: "Show instruction-file and installed Pi package counts on the project row.",
+	skills: "Show active/available Pi skill counts on the session row.",
+	mcp: "Show parsed MCP connected/total server counts on the session row.",
+	toolActivity: "Show completed or running native tools on the session row.",
+	agentActivity: "Show active main agent runs on the session row (not subagent count).",
 };
 
 const directCommandSuggestions = [
@@ -226,6 +228,7 @@ function isFooterSegmentSettingId(value: string): value is FooterSegmentSettingI
 		value === "cacheDetails" ||
 		value === "codexUsage" ||
 		value === "configCounts" ||
+		value === "skills" ||
 		value === "mcp" ||
 		value === "toolActivity" ||
 		value === "agentActivity"

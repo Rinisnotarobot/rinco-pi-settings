@@ -25,7 +25,8 @@ package.json
 ├── extensions/header/index.ts
 ├── extensions/zentui/index.ts          生命周期与副作用编排
 │   ├── config.ts                       配置模型、归一化与持久化
-│   ├── footer.ts                       Footer 渲染与布局
+│   ├── footer.ts                       Footer 状态段渲染
+│   │   ├── footer-layout.ts            分类左对齐布局与宽度预算
 │   │   ├── footer-format.ts            模板解析
 │   │   ├── extension-status.ts         外部状态清洗与分组
 │   │   ├── format.ts                   文本/数值格式化
@@ -36,7 +37,8 @@ package.json
 │   ├── runtime.ts                      Runtime 探测与缓存
 │   ├── package-version.ts              项目清单版本解析
 │   ├── telemetry.ts                    Session/Turn/Tool/Agent 活动
-│   ├── config-counts.ts                指令、Skills 和 Package 统计
+│   ├── skill-activity.ts               Skill 发现与 Session 激活状态
+│   ├── config-counts.ts                指令与 Package 统计
 │   ├── mcp-status.ts                   非侵入式 MCP 状态解析
 │   ├── codex-usage/                    Codex Auth、CLI fallback 与格式化
 │   ├── project-state.ts                刷新结果应用与 last-good
@@ -74,18 +76,21 @@ session_shutdown
 
 1. 启动新的 `SessionLifecycle` generation；
 2. 清理流式 Context；
-3. 记录 Session 起始时间；
-4. 使 Token/费用缓存失效；
-5. 清除上一个项目 cwd；
-6. 读取配置并同步初始模型/Usage 状态；
-7. TUI 且 `features.statusLine=true` 时安装 Footer；
-8. 启动周期刷新并强制首次项目刷新；
-9. 按需启动时间/会话时长计时器。
+3. 从 Pi Skill 资源与当前 Session branch 恢复 Skill 总数/激活数；
+4. 记录 Session 起始时间；
+5. 使 Token/费用缓存失效；
+6. 清除上一个项目 cwd；
+7. 读取配置并同步初始模型/Usage 状态；
+8. TUI 且 `features.statusLine=true` 时安装 Footer；
+9. 启动周期刷新并强制首次项目刷新；
+10. 按需启动时间/会话时长计时器。
 
 ### 事件处理
 
 | Pi 事件 | 主要动作 |
 | --- | --- |
+| `resources_discover` | 资源扩展完成后同步可用 Skill 总数 |
+| `before_agent_start` | 同步 Skill 列表并识别 `/skill:name` 展开的激活 Skill |
 | `agent_start` | 清理 live Context，同步交互状态 |
 | `agent_end` | 清理 live Context，同步并刷新项目 |
 | `model_select` | 清理 live Context，同步模型状态 |
@@ -95,9 +100,9 @@ session_shutdown
 | `message_update` | 更新流式 Context，约 250ms 合并重绘 |
 | `message_end` | 刷新 Usage 缓存并刷新项目；错误/中止时清 live Context |
 | `tool_execution_start` | 清 live Context，以 toolCallId 记录 Running Tool |
-| `tool_execution_end` | 完成对应 Tool，同步并刷新项目 |
+| `tool_execution_end` | 完成对应 Tool；成功读取 Skill 文件时计为激活；同步并刷新项目 |
 | `session_compact` | 清 live Context、Usage 缓存并刷新项目 |
-| `session_tree` | 清 live Context、Usage 缓存并刷新项目 |
+| `session_tree` | 清 live Context，按新 branch 恢复 Skill 激活状态、Usage 缓存并刷新项目 |
 | `session_shutdown` | 停止定时器、刷新器和 Footer |
 
 Git 分支变化还会由 `footerData.onBranchChange()` 触发刷新。
@@ -117,6 +122,7 @@ Git 分支变化还会由 `footerData.onBranchChange()` 触发刷新。
 - Package version；
 - Session 名称、Turn、Thinking level；
 - Tool 历史和主 Agent run 活动；
+- Skill 总数与当前 Session branch 的激活数；
 - 配置统计与 Codex usage 状态；
 - Session 起始时间。
 
@@ -179,12 +185,12 @@ Runtime 检测根据 cwd 和顶层目录 fingerprint 缓存，最多保留 32 �
 ## Footer 渲染管线
 
 1. 读取当前配置；
-2. 解析路径、Git、Context、Token、费用等状态段；
-3. 空模板按项目环境、会话模型、执行活动、用量服务划分语义四区；非空 `footerFormat` 解析兼容的单行模板；
+2. 解析路径、Git、Context、Token、费用等状态段，并规范化计数符号与数字间距；
+3. 空模板按 `⌂ 项目`、`λ 会话`、`◉ 用量` 分类为三行并全部左对齐；非空 `footerFormat` 解析兼容的单行模板；
 4. 读取其他扩展状态；
-5. 清洗状态文本并按 left/middle/right 分组；
+5. 清洗状态文本并按 left/middle/right 分组顺序追加到第二行，MCP 专用段也位于第二行；
 6. 为每一行独立分配可见宽度预算；
-7. 空模板截断并输出双行，非空模板截断并输出单行。
+7. 空模板在行末安全截断并输出三行，非空模板截断并输出单行。
 
 宽度由 `@earendil-works/pi-tui` 的 `visibleWidth()` 和 `truncateToWidth()` 计算，可正确忽略 ANSI 样式序列。Header 的图案宽度则按 Unicode code point 估算，对部分全角、组合字符或特殊 glyph 可能不完全准确。
 
@@ -229,7 +235,8 @@ session_start / session_tree / model_select
 - 执行检测到的语言、构建工具或 Runtime 的版本命令；
 - 在 Codex Model 下请求固定 ChatGPT usage endpoint，必要时启动 `codex app-server`；
 - 读取当前 cwd 的顶层目录、项目清单和指令文件；
-- 读取 Pi Agent directory 的 Skills 与 `settings.json#packages`；
+- 读取 Pi 当前发现的 Skill 元数据和 Session branch；
+- 读取 Pi Agent directory 的 `settings.json#packages`；
 - 写入用户 Agent 目录下的 Zentui 配置。
 
 它不会执行项目清单中的脚本，也不会递归扫描整个仓库或父目录。
