@@ -90,7 +90,9 @@ The package manifest registers the header, footer, and theme automatically. Afte
 
 ## ⚙️ Configuration
 
-Run `/zentui` for the interactive settings UI. Custom footer formats use `$name` or `${name}` variables:
+Run `/zentui` for the interactive settings UI. Use `/effort` to choose `off → minimal → low → medium → high → xhigh → max`; move with Left/Right (Home/End), confirm with your configured confirm key or Space, and cancel with your configured cancel key.
+
+Custom footer formats use `$name` or `${name}` variables:
 
 | Variable            | Description          | Example                    |
 | ------------------- | -------------------- | -------------------------- |

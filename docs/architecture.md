@@ -43,6 +43,8 @@ package.json
 │   ├── project-refresh.ts              节流、合并与周期刷新
 │   ├── live-context.ts                 流式 Context 覆盖
 │   ├── session-lifecycle.ts            Session generation 防护
+│   ├── effort-level.ts                 Thinking level 顺序与移动逻辑
+│   ├── effort-command.ts               /effort 横向选择弹窗
 │   └── settings-command.ts             /zentui 命令和 TUI
 └── themes/sakura-macaron.json
 ```
@@ -99,6 +101,10 @@ session_shutdown
 | `session_shutdown` | 停止定时器、刷新器和 Footer |
 
 Git 分支变化还会由 `footerData.onBranchChange()` 触发刷新。
+
+### Thinking effort 命令
+
+`/effort` 使用居中 Overlay 横向展示 Pi 的 Thinking level。确认后调用 `pi.setThinkingLevel()`；Pi 发出的 `thinking_level_select` 事件沿用上述链路更新 Footer，命令本身不直接修改 Footer 状态。
 
 ## 状态模型
 

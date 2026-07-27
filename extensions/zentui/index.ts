@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import registerCodexUsage from "./codex-usage/index";
 import { countConfigEntries } from "./config-counts";
+import { registerEffortCommand } from "./effort-command";
 import {
 	type ColorSourcesConfig,
 	type ContextStyle,
@@ -253,6 +254,8 @@ export default function (pi: ExtensionAPI) {
 		lastProjectCwd = undefined;
 		installUi(ctx);
 	});
+
+	registerEffortCommand(pi);
 
 	registerZentuiSettingsCommand(pi, {
 		getConfig: getCurrentConfig,

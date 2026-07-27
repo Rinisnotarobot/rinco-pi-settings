@@ -90,7 +90,9 @@ pi install git:github.com/Rinisnotarobot/rinco-pi-settings
 
 ## ⚙️ 配置
 
-运行 `/zentui` 可打开交互式设置界面。自定义 Footer 格式使用 `$name` 或 `${name}` 变量：
+运行 `/zentui` 可打开交互式设置界面。使用 `/effort` 依次选择 `off → minimal → low → medium → high → xhigh → max`；按左/右键移动（Home/End 跳至首尾），使用已配置的确认键或 Space 确认，使用已配置的取消键取消。
+
+自定义 Footer 格式使用 `$name` 或 `${name}` 变量：
 
 | 变量                | 描述                 | 示例                       |
 | ------------------- | -------------------- | -------------------------- |
