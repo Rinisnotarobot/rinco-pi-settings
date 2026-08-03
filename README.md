@@ -59,6 +59,18 @@ Fully integrated status bar that tracks:
 
 All styled in Sakura palette. Fully customizable via template strings.
 
+The MCP segment reads the adapter's public `mcp` status and supports both the current `MCP: 3 servers enabled (2 connected)` format and the legacy `MCP: 2/3 servers` format. Zentui normalizes either form to `⊕ connected/enabled` (for example, `⊕ 2/3`) without intercepting or replacing the adapter's status API.
+
+### 4. Thinking Effort Selector
+
+Run `/effort` to open a centered, responsive selector for Pi's seven thinking levels:
+
+```text
+off → minimal → low → medium → high → xhigh → max
+```
+
+The selector starts at the current thinking level, respects Pi's configured confirm/cancel keybindings, and applies the result through Pi's native thinking-level API. It also warns when no model is selected or when the selected model does not support reasoning.
+
 ---
 
 ## 📦 Install
@@ -90,7 +102,33 @@ The package manifest registers the header, footer, and theme automatically. Afte
 
 ## ⚙️ Configuration
 
-Run `/zentui` for the interactive settings UI. Use `/effort` to choose `off → minimal → low → medium → high → xhigh → max`; move with Left/Right (Home/End), confirm with your configured confirm key or Space, and cancel with your configured cancel key.
+### Footer Settings
+
+Run `/zentui` to open the interactive settings UI. It controls footer coloring, feature switches, layout, built-in segments, and third-party extension status placement. Changes are applied immediately and saved to `~/.pi/agent/sakura-cyberdeck-zentui.json`.
+
+Useful direct commands:
+
+```text
+/zentui statusline enable
+/zentui statusline disable
+/zentui statusline toggle
+/zentui format clear
+```
+
+### Thinking Effort
+
+Run `/effort` in the Pi TUI after selecting a reasoning-capable model. The overlay initializes from the current Pi thinking level and provides these controls:
+
+| Key                           | Action                         |
+| ----------------------------- | ------------------------------ |
+| `Left` / `Right`              | Move one level                 |
+| `Home` / `End`                | Jump to `off` / `max`          |
+| Configured confirm or `Space` | Apply the highlighted level    |
+| Configured cancel             | Close without changing effort  |
+
+The selector always presents all seven Pi levels, but the effective levels depend on the active model and provider. After confirmation, a notification shows the applied level; if Pi normalizes the request, it shows both the requested and applied values. The footer's thinking segment then updates through Pi's native `thinking_level_select` event.
+
+### Footer Templates
 
 Custom footer formats use `$name` or `${name}` variables:
 
@@ -98,13 +136,15 @@ Custom footer formats use `$name` or `${name}` variables:
 | ------------------- | -------------------- | -------------------------- |
 | `$model`            | Provider and model   | `openai-codex/gpt-5.3`     |
 | `$context`          | Context usage        | `35%/200k`                 |
-| `$tokens`           | Token totals         | `↑4.2k ↓1.1k`              |
-| `$cost`             | Session cost         | `$0.030`                   |
+| `$tokens`           | Token totals         | `↑ 4.2k ↓ 1.1k`            |
+| `$cost`             | Session cost         | `$ 0.030`                  |
 | `$session_duration` | Session time         | `14m 32s`                  |
 | `$git_branch`       | Git branch           | `main`                     |
 | `$git_commit`       | Short commit and tag | `a3f7b2c`                  |
-| `$tool_counts`      | Completed tool calls | `read×3 edit`              |
+| `$tool_counts`      | Completed tool calls | `read × 3 edit`            |
 | `$mcp`              | MCP server status    | `⊕ 2/2`                    |
+
+`$mcp` is empty when no recognized public `mcp` status is available. In the current enabled-server format, an omitted connected count is treated as zero; optional disabled-server details are accepted but are not included in the compact footer label.
 
 **Example footer format:**
 
@@ -112,7 +152,7 @@ Custom footer formats use `$name` or `${name}` variables:
 /zentui format "$model · $context · $cost · $git_branch( $git_commit) · $session_duration"
 ```
 
-To restore the built-in two-line layout, run `/zentui format clear`.
+To restore the built-in three-line layout, run `/zentui format clear`.
 
 Full reference: [Footer Guide](docs/footer.md) · [Configuration Docs](docs/configuration.md)
 

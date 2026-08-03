@@ -59,6 +59,18 @@
 
 所有内容采用 Sakura 色板样式。通过模板字符串完全可定制。
 
+MCP 状态段读取适配器公开的 `mcp` 状态，同时兼容当前格式 `MCP: 3 servers enabled (2 connected)` 与旧格式 `MCP: 2/3 servers`。Zentui 会将两者统一显示为 `⊕ 已连接数/已启用数`（例如 `⊕ 2/3`），不会拦截或替换适配器的状态 API。
+
+### 4. Thinking Effort 选择器
+
+运行 `/effort` 可打开居中且自适应宽度的选择器，在 Pi 的七档思考等级间切换：
+
+```text
+off → minimal → low → medium → high → xhigh → max
+```
+
+选择器会定位到当前思考等级，遵循 Pi 已配置的确认/取消键位，并通过 Pi 原生 Thinking Level API 应用结果。未选择模型或当前模型不支持推理时，会显示明确警告。
+
 ---
 
 ## 📦 安装
@@ -90,7 +102,33 @@ pi install git:github.com/Rinisnotarobot/rinco-pi-settings
 
 ## ⚙️ 配置
 
-运行 `/zentui` 可打开交互式设置界面。使用 `/effort` 依次选择 `off → minimal → low → medium → high → xhigh → max`；按左/右键移动（Home/End 跳至首尾），使用已配置的确认键或 Space 确认，使用已配置的取消键取消。
+### Footer 设置
+
+运行 `/zentui` 可打开交互式设置界面，用于调整 Footer 配色、功能开关、布局、内置状态段以及第三方扩展状态的位置。修改会立即生效，并保存到 `~/.pi/agent/sakura-cyberdeck-zentui.json`。
+
+常用直接命令：
+
+```text
+/zentui statusline enable
+/zentui statusline disable
+/zentui statusline toggle
+/zentui format clear
+```
+
+### Thinking Effort
+
+在 Pi TUI 中选好支持推理的模型后运行 `/effort`。弹窗会从 Pi 当前思考等级开始，并支持以下操作：
+
+| 按键                      | 操作                         |
+| ------------------------- | ---------------------------- |
+| `Left` / `Right`          | 向前或向后移动一档           |
+| `Home` / `End`            | 跳至 `off` / `max`           |
+| 已配置的确认键或 `Space`  | 应用高亮等级                 |
+| 已配置的取消键            | 关闭弹窗且不修改思考等级     |
+
+选择器始终展示 Pi 的全部七档等级，但实际可用等级取决于当前模型和 Provider。确认后会提示最终应用的等级；如果 Pi 对请求进行了归一化，提示中会同时显示请求值和实际值。Footer 的 Thinking 状态段随后通过 Pi 原生 `thinking_level_select` 事件更新。
+
+### Footer 模板
 
 自定义 Footer 格式使用 `$name` 或 `${name}` 变量：
 
@@ -98,13 +136,15 @@ pi install git:github.com/Rinisnotarobot/rinco-pi-settings
 | ------------------- | -------------------- | -------------------------- |
 | `$model`            | Provider 和模型      | `openai-codex/gpt-5.3`     |
 | `$context`          | Context 使用情况     | `35%/200k`                 |
-| `$tokens`           | Token 汇总           | `↑4.2k ↓1.1k`              |
-| `$cost`             | 会话成本             | `$0.030`                   |
+| `$tokens`           | Token 汇总           | `↑ 4.2k ↓ 1.1k`            |
+| `$cost`             | 会话成本             | `$ 0.030`                  |
 | `$session_duration` | 会话时长             | `14m 32s`                  |
 | `$git_branch`       | Git 分支             | `main`                     |
 | `$git_commit`       | 短提交哈希和 Tag     | `a3f7b2c`                  |
-| `$tool_counts`      | 已完成的 Tool 调用   | `read×3 edit`              |
+| `$tool_counts`      | 已完成的 Tool 调用   | `read × 3 edit`            |
 | `$mcp`              | MCP Server 状态      | `⊕ 2/2`                    |
+
+没有可识别的公开 `mcp` 状态时，`$mcp` 为空。对于当前的 enabled-server 格式，若未提供 connected 数量则按 0 处理；可选的 disabled 数量会被接受，但不会出现在紧凑 Footer 标签中。
 
 **Footer 格式示例：**
 
@@ -112,7 +152,7 @@ pi install git:github.com/Rinisnotarobot/rinco-pi-settings
 /zentui format "$model · $context · $cost · $git_branch( $git_commit) · $session_duration"
 ```
 
-运行 `/zentui format clear` 可恢复内置双行布局。
+运行 `/zentui format clear` 可恢复内置三行布局。
 
 完整参考：[页脚指南](docs/footer.md) · [配置文档](docs/configuration.md)
 
