@@ -4,3 +4,7 @@ node_modules/
 
 # Vendored upstream reference source (code is copied into extensions/zentui)
 pi-shannon-statusline/
+
+# Local agent tooling caches
+.codegraph/
+.claude/

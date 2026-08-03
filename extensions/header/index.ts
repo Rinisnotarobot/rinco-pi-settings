@@ -46,7 +46,33 @@ function getAvailableRows(tui: unknown): number {
   }
 }
 
-function renderHeader(width: number, availableRows = 0): string[] {
+// Eyelid blink animation: `rows` is how many artwork rows are visible around the
+// vertical center (odd numbers keep the slit symmetric). Hidden rows are kept as
+// blank lines so the header height never changes mid-animation.
+type BlinkFrame = { readonly rows: number; readonly delay: number };
+
+const BLINK_FRAMES: readonly BlinkFrame[] = [
+  { rows: 1, delay: 90 },
+  { rows: 3, delay: 70 },
+  { rows: 5, delay: 70 },
+  { rows: 7, delay: 70 },
+  { rows: 9, delay: 260 },
+  { rows: 7, delay: 60 },
+  { rows: 3, delay: 55 },
+  { rows: 1, delay: 70 },
+  { rows: 3, delay: 55 },
+  { rows: 7, delay: 60 },
+  { rows: 9, delay: 0 },
+];
+
+function isRowVisible(index: number, total: number, visibleRows: number): boolean {
+  if (visibleRows >= total) return true;
+  const center = Math.floor((total - 1) / 2);
+  const half = Math.floor((visibleRows - 1) / 2);
+  return Math.abs(index - center) <= half;
+}
+
+function renderHeader(width: number, availableRows = 0, visibleRows = ANIME_ART.length): string[] {
   if (width <= 0) return [];
 
   const sakura: RGB = [242, 167, 198];
@@ -66,7 +92,8 @@ function renderHeader(width: number, availableRows = 0): string[] {
   const telemetryWidth = [...visibleTelemetry].length;
   const telemetryPad = " ".repeat(Math.max(0, Math.min(width - telemetryWidth, Math.floor((width - telemetryWidth) / 2) + 1)));
 
-  const art = ANIME_ART.map((line) => {
+  const art = ANIME_ART.map((line, index) => {
+    if (!isRowVisible(index, ANIME_ART.length, visibleRows)) return "";
     const clipped = [...line].slice(0, visibleArtWidth).join("");
     return `${artPad}${gradient(clipped, sakura, sky)}`;
   });
@@ -86,15 +113,46 @@ function renderHeader(width: number, availableRows = 0): string[] {
 }
 
 export default function sakuraCyberdeckHeader(pi: ExtensionAPI): void {
+  let blinkTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const stopBlink = (): void => {
+    if (blinkTimer) clearTimeout(blinkTimer);
+    blinkTimer = undefined;
+  };
+
   pi.on("session_start", (_event, ctx) => {
     if (!ctx.hasUI) return;
-    ctx.ui.setHeader((tui) => ({
-      render: (width) => renderHeader(width, getAvailableRows(tui)),
-      invalidate() {},
-    }));
+    ctx.ui.setHeader((tui) => {
+      let frame = 0;
+
+      const advance = (): void => {
+        const current = BLINK_FRAMES[frame];
+        if (!current || current.delay <= 0 || frame >= BLINK_FRAMES.length - 1) {
+          // Last frame is the fully open artwork: leave it static.
+          stopBlink();
+          return;
+        }
+        blinkTimer = setTimeout(() => {
+          frame += 1;
+          tui.requestRender();
+          advance();
+        }, current.delay);
+        blinkTimer.unref?.();
+      };
+
+      stopBlink();
+      advance();
+
+      return {
+        render: (width) =>
+          renderHeader(width, getAvailableRows(tui), BLINK_FRAMES[frame]?.rows ?? ANIME_ART.length),
+        invalidate() {},
+      };
+    });
   });
 
   pi.on("session_shutdown", (_event, ctx) => {
+    stopBlink();
     if (ctx.hasUI) ctx.ui.setHeader(undefined);
   });
 }
