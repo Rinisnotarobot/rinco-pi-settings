@@ -1,4 +1,8 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionCommandContext,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { formatCodexUsageStatusline, formatQueryErrors, showReport } from "./format.ts";
 import { isOpenAICodexModel, isStaleExtensionContextError, queryUsage } from "./query.ts";
 import type {
@@ -9,6 +13,7 @@ import type {
 } from "./types.ts";
 
 const COMMAND_NAME = "codex-status";
+const REFRESH_COMMAND_NAME = "usage-refresh";
 const DEFAULT_TIMEOUT_MS = 15_000;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -177,63 +182,70 @@ export default function registerCodexUsage(
 		setUsageStatusline(ctx, result.report, { autoRefresh: true, model: selectedModel });
 	};
 
+	const handleCodexStatus = async (args: string, ctx: ExtensionCommandContext) => {
+		const commandGeneration = sessionGeneration;
+		try {
+			const options = parseArgs(args);
+			if (!options.ok) {
+				ctx.ui.notify(options.error, "warning");
+				return;
+			}
+
+			if (options.value.clearStatusline) {
+				clearUsageStatusline(ctx);
+				ctx.ui.notify("Codex usage cleared from the Sakura Zentui Footer.", "info");
+				return;
+			}
+
+			const cached = cache && Date.now() - cache.createdAt < CACHE_TTL_MS ? cache : undefined;
+			if (cached && !options.value.refresh) {
+				if (options.value.statusline) {
+					setUsageStatusline(ctx, cached.report, {
+						autoRefresh: isOpenAICodexModel(ctx.model),
+						model: ctx.model,
+					});
+				}
+				showReport(ctx, cached.report, true);
+				return;
+			}
+
+			let keepStatusline = false;
+			const statuslineStarted = options.value.statusline && setStatuslineValue(ctx, "checking");
+			try {
+				const result = await runQuery(ctx, options.value);
+				if (commandGeneration !== sessionGeneration || !sessionActive) return;
+				if (!result.ok) {
+					ctx.ui.notify(formatQueryErrors(result.errors), "error");
+					return;
+				}
+
+				cache = { createdAt: Date.now(), report: result.report };
+				if (options.value.statusline) {
+					setUsageStatusline(ctx, result.report, {
+						autoRefresh: isOpenAICodexModel(ctx.model),
+						model: ctx.model,
+					});
+					keepStatusline = true;
+				}
+				showReport(ctx, result.report, false);
+			} finally {
+				if (statuslineStarted && !keepStatusline) setStatuslineValue(ctx, undefined);
+			}
+		} catch (error) {
+			if (handleStaleContextError(ctx, error)) return;
+			throw error;
+		}
+	};
+
 	pi.registerCommand(COMMAND_NAME, {
 		description: "Show Codex ChatGPT subscription usage and rate-limit windows",
 		getArgumentCompletions: completeCodexStatusArguments,
-		handler: async (args, ctx) => {
-			const commandGeneration = sessionGeneration;
-			try {
-				const options = parseArgs(args);
-				if (!options.ok) {
-					ctx.ui.notify(options.error, "warning");
-					return;
-				}
+		handler: handleCodexStatus,
+	});
 
-				if (options.value.clearStatusline) {
-					clearUsageStatusline(ctx);
-					ctx.ui.notify("Codex usage cleared from the Sakura Zentui Footer.", "info");
-					return;
-				}
-
-				const cached = cache && Date.now() - cache.createdAt < CACHE_TTL_MS ? cache : undefined;
-				if (cached && !options.value.refresh) {
-					if (options.value.statusline) {
-						setUsageStatusline(ctx, cached.report, {
-							autoRefresh: isOpenAICodexModel(ctx.model),
-							model: ctx.model,
-						});
-					}
-					showReport(ctx, cached.report, true);
-					return;
-				}
-
-				let keepStatusline = false;
-				const statuslineStarted = options.value.statusline && setStatuslineValue(ctx, "checking");
-				try {
-					const result = await runQuery(ctx, options.value);
-					if (commandGeneration !== sessionGeneration || !sessionActive) return;
-					if (!result.ok) {
-						ctx.ui.notify(formatQueryErrors(result.errors), "error");
-						return;
-					}
-
-					cache = { createdAt: Date.now(), report: result.report };
-					if (options.value.statusline) {
-						setUsageStatusline(ctx, result.report, {
-							autoRefresh: isOpenAICodexModel(ctx.model),
-							model: ctx.model,
-						});
-						keepStatusline = true;
-					}
-					showReport(ctx, result.report, false);
-				} finally {
-					if (statuslineStarted && !keepStatusline) setStatuslineValue(ctx, undefined);
-				}
-			} catch (error) {
-				if (handleStaleContextError(ctx, error)) return;
-				throw error;
-			}
-		},
+	pi.registerCommand(REFRESH_COMMAND_NAME, {
+		description: "Refresh Codex usage now",
+		handler: (_args, ctx) => handleCodexStatus("--refresh", ctx),
 	});
 
 	pi.on("session_start", (_event, ctx) => {
