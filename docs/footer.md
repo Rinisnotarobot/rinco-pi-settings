@@ -140,15 +140,15 @@ MCP 状态从其他扩展发布的 `mcp` Footer status 中非侵入式解析，�
 - Extensions 数来自 Pi Agent 目录 `settings.json#packages`；
 - 文件统计随项目刷新更新，不在 Footer render 中读文件。
 
-### Codex 订阅用量
+### 模型额度
 
-当前 Model Provider 为 `openai-codex` 时自动查询：
+状态栏根据当前 Model Provider 自动切换额度信息：
 
-1. 优先使用 Pi Model Registry 提供的 Codex Auth 请求固定的 ChatGPT usage endpoint；
-2. 失败时使用 `codex app-server --listen stdio://`；
-3. 默认超时 15 秒、缓存和自动刷新周期 5 分钟；
-4. 状态显示剩余百分比，例如 `codex 60% 5h 75% wk`；
-5. `/codex-status` 可显示详细报告，`--refresh` 强制刷新，`--timeout 1..120` 调整本次查询超时。
+- `openai-codex`：优先使用 Pi Model Registry 提供的 Codex Auth 请求 ChatGPT usage endpoint，失败时回退到 `codex app-server --listen stdio://`；状态仅显示周限制剩余百分比，例如 `codex 75% wk`。
+- `token-switch`：使用环境变量 `TOKEN_SWITCH_API_KEY` 分别请求 billing subscription 与 usage 接口，按 `hard_limit_usd - total_usage / 100` 计算并显示可用额度，例如 `token-switch $750.00`。
+- 两种查询均使用 15 秒超时、5 分钟缓存和自动刷新周期；每次通过 `/model` 选择模型都会强制刷新，切换到其他 Provider 时清除额度状态。
+- `/usage-refresh` 按当前 Provider 刷新状态栏：`token-switch` 下只重新查询余额，其他情况等价于 `/codex-status --refresh`。
+- `/codex-status` 仍用于显示 Codex 详细报告，`--refresh` 强制刷新，`--timeout 1..120` 调整本次查询超时。在 `token-switch` Model 下执行时只弹出报告，**不会**覆盖状态栏里的余额。
 
 ```text
 /codex-status
@@ -156,6 +156,7 @@ MCP 状态从其他扩展发布的 `mcp` Footer status 中非侵入式解析，�
 /codex-status --no-statusline
 /codex-status --clear-statusline
 /codex-status --timeout 30
+/usage-refresh
 ```
 
 ## 自定义模板

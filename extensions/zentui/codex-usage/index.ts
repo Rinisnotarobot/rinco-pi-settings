@@ -5,6 +5,11 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { formatCodexUsageStatusline, formatQueryErrors, showReport } from "./format.ts";
 import { isOpenAICodexModel, isStaleExtensionContextError, queryUsage } from "./query.ts";
+import {
+	formatTokenSwitchBalance,
+	isTokenSwitchModel,
+	queryTokenSwitchBalance,
+} from "../token-switch-usage.ts";
 import type {
 	CachedReport,
 	CodexUsageModel,
@@ -21,6 +26,16 @@ interface CommandArgumentCompletion {
 	value: string;
 	label: string;
 	description?: string;
+}
+
+/** Provider-specific hooks driving the shared usage-statusline refresh pipeline. */
+interface UsageProbe<T> {
+	readCache: () => { createdAt: number; value: T } | undefined;
+	writeCache: (value: T) => void;
+	query: () => Promise<T>;
+	render: (value: T) => string;
+	pendingLabel: string;
+	errorLabel: string;
 }
 
 const COMMAND_COMPLETIONS: readonly CommandArgumentCompletion[] = [
@@ -43,6 +58,7 @@ export default function registerCodexUsage(
 	onHudStatusChange: (ctx: ExtensionContext, value: string | undefined) => void,
 ) {
 	let cache: CachedReport | undefined;
+	let tokenSwitchCache: { createdAt: number; balance: number } | undefined;
 	let statuslineClearTimer: ReturnType<typeof setTimeout> | undefined;
 	let statuslineRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 	let statuslineRequestId = 0;
@@ -61,6 +77,16 @@ export default function registerCodexUsage(
 		activeQueries.add(controller);
 		try {
 			return await queryUsage(ctx, options, controller.signal);
+		} finally {
+			activeQueries.delete(controller);
+		}
+	};
+
+	const runTokenSwitchQuery = async (timeoutMs: number) => {
+		const controller = new AbortController();
+		activeQueries.add(controller);
+		try {
+			return await queryTokenSwitchBalance({ timeoutMs, signal: controller.signal });
 		} finally {
 			activeQueries.delete(controller);
 		}
@@ -115,15 +141,15 @@ export default function registerCodexUsage(
 		statuslineClearTimer.unref?.();
 	};
 
-	const scheduleStatuslineRefresh = (ctx: ExtensionContext, model: CodexUsageModel | undefined) => {
+	const scheduleStatuslineRefresh = (ctx: ExtensionContext) => {
 		if (statuslineRefreshTimer) clearTimeout(statuslineRefreshTimer);
 		const requestId = statuslineRequestId;
 		statuslineRefreshTimer = setTimeout(() => {
 			statuslineRefreshTimer = undefined;
 			if (!sessionActive || requestId !== statuslineRequestId) return;
-			void refreshCurrentCodexUsageStatusline(ctx, true, model).catch(
-				rethrowUnlessStaleContextError(ctx),
-			);
+			// Resolve the model when the timer fires: it may differ from the one that
+			// scheduled this refresh.
+			void refreshCurrentUsageStatusline(ctx, true).catch(rethrowUnlessStaleContextError(ctx));
 		}, CACHE_TTL_MS);
 		statuslineRefreshTimer.unref?.();
 	};
@@ -137,11 +163,70 @@ export default function registerCodexUsage(
 		activeStatuslineContext = ctx;
 		if (statuslineClearTimer) clearTimeout(statuslineClearTimer);
 		statuslineClearTimer = undefined;
-		if (options.autoRefresh) scheduleStatuslineRefresh(ctx, options.model);
+		if (options.autoRefresh) scheduleStatuslineRefresh(ctx);
 		else scheduleTemporaryStatuslineClear(ctx);
 	};
 
-	const refreshCurrentCodexUsageStatusline = async (
+	/**
+	 * Shared refresh pipeline for every provider-specific usage probe: it owns the
+	 * cache TTL, the request/generation guards, and the rule that a stale-but-valid
+	 * reading always beats a placeholder or an error label.
+	 */
+	const refreshUsageStatusline = async <T>(
+		ctx: ExtensionContext,
+		force: boolean,
+		probe: UsageProbe<T>,
+	) => {
+		if (!sessionActive) return;
+		activeStatuslineContext = ctx;
+		const requestId = statuslineRequestId + 1;
+		statuslineRequestId = requestId;
+		const generation = sessionGeneration;
+		const isCurrent = () =>
+			sessionActive && generation === sessionGeneration && requestId === statuslineRequestId;
+
+		const entry = probe.readCache();
+		const cached = entry && Date.now() - entry.createdAt < CACHE_TTL_MS ? entry.value : undefined;
+		const showValue = (value: T) => {
+			if (!setStatuslineValue(ctx, probe.render(value))) return;
+			activeStatuslineContext = ctx;
+			if (statuslineClearTimer) clearTimeout(statuslineClearTimer);
+			statuslineClearTimer = undefined;
+			scheduleStatuslineRefresh(ctx);
+		};
+
+		if (cached !== undefined && !force) {
+			showValue(cached);
+			return;
+		}
+
+		const placeholder = cached !== undefined ? probe.render(cached) : probe.pendingLabel;
+		if (!setStatuslineValue(ctx, placeholder)) return;
+
+		let value: T;
+		try {
+			value = await probe.query();
+		} catch (error) {
+			// A replaced session must surface as a stale-context error, not as a label.
+			if (isStaleExtensionContextError(error)) throw error;
+			if (!isCurrent()) return;
+			const fallback = cached !== undefined ? probe.render(cached) : probe.errorLabel;
+			if (setStatuslineValue(ctx, fallback)) scheduleStatuslineRefresh(ctx);
+			return;
+		}
+
+		if (!isCurrent()) return;
+		probe.writeCache(value);
+		showValue(value);
+	};
+
+	const queryCodexReport = async (ctx: ExtensionContext): Promise<CodexUsageReport> => {
+		const result = await runQuery(ctx, { timeoutMs: DEFAULT_TIMEOUT_MS });
+		if (!result.ok) throw new Error("Codex usage query failed.");
+		return result.report;
+	};
+
+	const refreshCurrentUsageStatusline = async (
 		ctx: ExtensionContext,
 		force: boolean,
 		model?: CodexUsageModel,
@@ -149,37 +234,39 @@ export default function registerCodexUsage(
 		if (!sessionActive) return;
 		activeStatuslineContext = ctx;
 		const selectedModel = model ?? ctx.model;
+
+		if (isTokenSwitchModel(selectedModel)) {
+			await refreshUsageStatusline<number>(ctx, force, {
+				readCache: () =>
+					tokenSwitchCache
+						? { createdAt: tokenSwitchCache.createdAt, value: tokenSwitchCache.balance }
+						: undefined,
+				writeCache: (balance) => {
+					tokenSwitchCache = { createdAt: Date.now(), balance };
+				},
+				query: () => runTokenSwitchQuery(DEFAULT_TIMEOUT_MS),
+				render: formatTokenSwitchBalance,
+				pendingLabel: "checking balance",
+				errorLabel: "balance error",
+			});
+			return;
+		}
+
 		if (!isOpenAICodexModel(selectedModel)) {
 			clearUsageStatusline(ctx);
 			return;
 		}
 
-		const requestId = statuslineRequestId + 1;
-		statuslineRequestId = requestId;
-		const cached = cache && Date.now() - cache.createdAt < CACHE_TTL_MS ? cache : undefined;
-		if (cached && !force) {
-			setUsageStatusline(ctx, cached.report, { autoRefresh: true, model: selectedModel });
-			return;
-		}
-
-		if (!setStatuslineValue(ctx, "checking")) return;
-		const generation = sessionGeneration;
-		const result = await runQuery(ctx, { timeoutMs: DEFAULT_TIMEOUT_MS });
-		if (
-			!sessionActive ||
-			generation !== sessionGeneration ||
-			requestId !== statuslineRequestId
-		) return;
-
-		if (!result.ok) {
-			if (setStatuslineValue(ctx, "usage error")) {
-				scheduleStatuslineRefresh(ctx, selectedModel);
-			}
-			return;
-		}
-
-		cache = { createdAt: Date.now(), report: result.report };
-		setUsageStatusline(ctx, result.report, { autoRefresh: true, model: selectedModel });
+		await refreshUsageStatusline<CodexUsageReport>(ctx, force, {
+			readCache: () => (cache ? { createdAt: cache.createdAt, value: cache.report } : undefined),
+			writeCache: (report) => {
+				cache = { createdAt: Date.now(), report };
+			},
+			query: () => queryCodexReport(ctx),
+			render: (report) => formatCodexUsageStatusline(report, selectedModel),
+			pendingLabel: "checking",
+			errorLabel: "usage error",
+		});
 	};
 
 	const handleCodexStatus = async (args: string, ctx: ExtensionCommandContext) => {
@@ -197,9 +284,13 @@ export default function registerCodexUsage(
 				return;
 			}
 
+			// On a Token Switch model the statusline belongs to the balance probe, so the
+			// Codex report is shown without overwriting it.
+			const useStatusline = options.value.statusline && !isTokenSwitchModel(ctx.model);
+
 			const cached = cache && Date.now() - cache.createdAt < CACHE_TTL_MS ? cache : undefined;
 			if (cached && !options.value.refresh) {
-				if (options.value.statusline) {
+				if (useStatusline) {
 					setUsageStatusline(ctx, cached.report, {
 						autoRefresh: isOpenAICodexModel(ctx.model),
 						model: ctx.model,
@@ -210,7 +301,7 @@ export default function registerCodexUsage(
 			}
 
 			let keepStatusline = false;
-			const statuslineStarted = options.value.statusline && setStatuslineValue(ctx, "checking");
+			const statuslineStarted = useStatusline && setStatuslineValue(ctx, "checking");
 			try {
 				const result = await runQuery(ctx, options.value);
 				if (commandGeneration !== sessionGeneration || !sessionActive) return;
@@ -220,7 +311,7 @@ export default function registerCodexUsage(
 				}
 
 				cache = { createdAt: Date.now(), report: result.report };
-				if (options.value.statusline) {
+				if (useStatusline) {
 					setUsageStatusline(ctx, result.report, {
 						autoRefresh: isOpenAICodexModel(ctx.model),
 						model: ctx.model,
@@ -244,8 +335,15 @@ export default function registerCodexUsage(
 	});
 
 	pi.registerCommand(REFRESH_COMMAND_NAME, {
-		description: "Refresh Codex usage now",
-		handler: (_args, ctx) => handleCodexStatus("--refresh", ctx),
+		description: "Refresh the model usage or balance shown in the footer now",
+		handler: async (_args, ctx) => {
+			// Refresh whichever probe owns the statusline for the active provider.
+			if (isTokenSwitchModel(ctx.model)) {
+				await refreshCurrentUsageStatusline(ctx, true).catch(rethrowUnlessStaleContextError(ctx));
+				return;
+			}
+			await handleCodexStatus("--refresh", ctx);
+		},
 	});
 
 	pi.on("session_start", (_event, ctx) => {
@@ -254,35 +352,24 @@ export default function registerCodexUsage(
 		cancelActiveQueries();
 		clearStatuslineTimers();
 		cache = undefined;
+		tokenSwitchCache = undefined;
 		activeStatuslineContext = undefined;
 		sessionActive = true;
-		if (isOpenAICodexModel(ctx.model)) {
-			void refreshCurrentCodexUsageStatusline(ctx, false, ctx.model).catch(
-				rethrowUnlessStaleContextError(ctx),
-			);
-		} else {
-			clearUsageStatusline(ctx);
-		}
+		void refreshCurrentUsageStatusline(ctx, false, ctx.model).catch(
+			rethrowUnlessStaleContextError(ctx),
+		);
 	});
 
 	pi.on("session_tree", (_event, ctx) => {
-		if (isOpenAICodexModel(ctx.model)) {
-			void refreshCurrentCodexUsageStatusline(ctx, false, ctx.model).catch(
-				rethrowUnlessStaleContextError(ctx),
-			);
-		} else {
-			clearUsageStatusline(ctx);
-		}
+		void refreshCurrentUsageStatusline(ctx, false, ctx.model).catch(
+			rethrowUnlessStaleContextError(ctx),
+		);
 	});
 
 	pi.on("model_select", (event, ctx) => {
-		if (isOpenAICodexModel(event.model)) {
-			void refreshCurrentCodexUsageStatusline(ctx, false, event.model).catch(
-				rethrowUnlessStaleContextError(ctx),
-			);
-		} else {
-			clearUsageStatusline(ctx);
-		}
+		void refreshCurrentUsageStatusline(ctx, true, event.model).catch(
+			rethrowUnlessStaleContextError(ctx),
+		);
 	});
 
 	pi.on("session_shutdown", (_event, ctx) => {
@@ -368,7 +455,6 @@ export { isStaleExtensionContextError } from "./query.ts";
 export type {
 	CodexUsageModel,
 	CodexUsageReport,
-	NormalizedCredits,
 	NormalizedRateLimitResetCredit,
 	NormalizedRateLimitResetCredits,
 	NormalizedRateLimitSnapshot,

@@ -41,6 +41,7 @@ import {
 } from "./project-refresh";
 import { applyProjectRefreshToState } from "./project-state";
 import { readRuntimeInfo } from "./runtime";
+import { isLiveExtensionContext } from "./session-context";
 import { SessionLifecycle } from "./session-lifecycle";
 import { SkillActivityTracker, type SkillReference } from "./skill-activity";
 import { registerZentuiSettingsCommand } from "./settings-command";
@@ -73,6 +74,13 @@ export default function (pi: ExtensionAPI) {
 
 	const refresh = () => {
 		if (sessionLifecycle.isCurrent()) requestFooterRender?.();
+	};
+	// Pi hands every event handler a brand-new ctx object, so identity comparisons
+	// with the session_start ctx would silently drop later updates.
+	const isActiveSessionContext = (ctx: ExtensionContext): boolean => {
+		if (!sessionLifecycle.isCurrent() || !isLiveExtensionContext(ctx)) return false;
+		activeSessionContext = ctx;
+		return true;
 	};
 	const liveContext = new LiveContextController(sessionLifecycle, refresh);
 	const getCurrentConfig = () => currentConfig;
@@ -286,7 +294,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("resources_discover", (_event, ctx) => {
 		sessionLifecycle.defer(() => {
-			if (ctx !== activeSessionContext) return;
+			if (!isActiveSessionContext(ctx)) return;
 			updateSkillCounts(ctx);
 			refresh();
 		});
@@ -348,14 +356,14 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	registerCodexUsage(pi, (ctx, value) => {
-		if (ctx !== activeSessionContext || !sessionLifecycle.isCurrent()) return;
+		if (!isActiveSessionContext(ctx)) return;
 		state.codexUsageStatus = value;
 		refresh();
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
 		liveContext.clear();
-		if (activeSessionContext === ctx) activeSessionContext = undefined;
+		activeSessionContext = undefined;
 		state.codexUsageStatus = undefined;
 		cleanupUi(ctx);
 	});

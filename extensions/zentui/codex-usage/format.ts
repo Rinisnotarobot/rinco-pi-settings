@@ -2,7 +2,6 @@ import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type {
 	CodexUsageModel,
 	CodexUsageReport,
-	NormalizedCredits,
 	NormalizedRateLimitSnapshot,
 	NormalizedRateLimitWindow,
 	UsageQueryError,
@@ -55,19 +54,39 @@ export function formatCodexUsageStatusline(
 	const snapshot = selectSnapshotForModel(report, model);
 	if (!snapshot) return "usage unavailable";
 
-	const parts = [formatStatuslinePrefix(snapshot)];
-	if (snapshot.primary) {
-		parts.push(
-			`${formatRemainingPercent(snapshot.primary)} ${formatWindowLabel(snapshot.primary, "5h", true)}`,
-		);
+	const weekly = selectWeeklyWindow(snapshot);
+	if (weekly) return formatStatuslineWindow(snapshot, weekly);
+
+	// A model-specific bucket may omit the long window; fall back to the account-wide one.
+	const codexSnapshot = report.snapshots.find(isPrimaryCodexSnapshot);
+	if (codexSnapshot && codexSnapshot !== snapshot) {
+		const fallbackWeekly = selectWeeklyWindow(codexSnapshot);
+		if (fallbackWeekly) return formatStatuslineWindow(codexSnapshot, fallbackWeekly);
 	}
-	if (snapshot.secondary) {
-		parts.push(
-			`${formatRemainingPercent(snapshot.secondary)} ${formatWindowLabel(snapshot.secondary, "weekly", true)}`,
-		);
-	}
-	if (parts.length === 1 && snapshot.credits) parts.push(formatCredits(snapshot.credits));
-	return parts.join(" ");
+
+	return `${formatStatuslinePrefix(snapshot)} weekly unavailable`;
+}
+
+function formatStatuslineWindow(
+	snapshot: NormalizedRateLimitSnapshot,
+	window: NormalizedRateLimitWindow,
+): string {
+	return `${formatStatuslinePrefix(snapshot)} ${formatRemainingPercent(window)} ${formatWindowLabel(window, "weekly", true)}`;
+}
+
+// Prefer the secondary (long) window, but some accounts only report a single
+// long window as `primary` — treat any window of a day or more as the weekly one.
+function selectWeeklyWindow(
+	snapshot: NormalizedRateLimitSnapshot,
+): NormalizedRateLimitWindow | undefined {
+	if (snapshot.secondary) return snapshot.secondary;
+	if (snapshot.primary && isLongWindow(snapshot.primary)) return snapshot.primary;
+	return undefined;
+}
+
+function isLongWindow(window: NormalizedRateLimitWindow): boolean {
+	const minutes = window.windowMinutes;
+	return minutes !== undefined && Number.isFinite(minutes) && minutes >= 1_440;
 }
 
 function selectSnapshotForModel(
@@ -225,14 +244,6 @@ function progressBar(percentRemaining: number): string {
 	return `[${"█".repeat(filled)}${"░".repeat(BAR_SEGMENTS - filled)}]`;
 }
 
-function formatCredits(credits: NormalizedCredits): string {
-	if (!credits.hasCredits) return "no credits";
-	if (credits.unlimited) return "unlimited credits";
-	const balance = credits.balance?.trim();
-	if (!balance) return "credits available";
-	return `${formatNumber(Number(balance), balance)} credits`;
-}
-
 function formatReset(epochSeconds: number): string {
 	const reset = new Date(epochSeconds * 1000);
 	if (Number.isNaN(reset.getTime())) return "at an unknown time";
@@ -259,11 +270,6 @@ export function formatQueryErrors(errors: UsageQueryError[]): string {
 		"Tip: use a Pi OpenAI Codex model or run /login for OpenAI ChatGPT Plus/Pro. If Pi auth is unavailable, install Codex CLI and run codex login for the fallback.",
 	);
 	return lines.join("\n");
-}
-
-function formatNumber(value: number, fallback: string): string {
-	if (!Number.isFinite(value)) return fallback;
-	return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value);
 }
 
 function clampPercent(value: number): number {

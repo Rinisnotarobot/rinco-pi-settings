@@ -194,20 +194,23 @@ Runtime 检测根据 cwd 和顶层目录 fingerprint 缓存，最多保留 32 �
 
 宽度由 `@earendil-works/pi-tui` 的 `visibleWidth()` 和 `truncateToWidth()` 计算，可正确忽略 ANSI 样式序列。Header 的图案宽度则按 Unicode code point 估算，对部分全角、组合字符或特殊 glyph 可能不完全准确。
 
-## Codex Usage 数据流
+## 模型额度数据流
 
-Codex controller 只在 `openai-codex` Model 下自动运行：
+额度 controller 在 `openai-codex` 和 `token-switch` Model 下自动运行：
 
 ```text
 session_start / session_tree / model_select
   └── cache (5 min)
-      ├── Pi modelRegistry auth
-      │   └── HTTPS chatgpt.com/backend-api/wham/usage
-      └── fallback: codex app-server over stdio JSON-RPC
-          └── normalize report → Sakura Footer status
+      ├── openai-codex
+      │   ├── Pi modelRegistry auth → HTTPS chatgpt.com/backend-api/wham/usage
+      │   └── fallback: codex app-server over stdio JSON-RPC
+      │       └── normalize report → 周限制剩余百分比
+      └── token-switch
+          └── TOKEN_SWITCH_API_KEY → HTTPS Neolink billing subscription + usage
+              └── hard_limit_usd - total_usage / 100 → 可用额度
 ```
 
-认证 Header 只存在于查询局部变量，不写入 Footer state；错误 body 会脱敏和截断。CLI 使用固定 executable/arguments 且不经过 Shell，结束后关闭 stdin 并终止 child。详细报告通过 `/codex-status` 通知显示。
+认证 Header 只存在于查询局部变量，不写入 Footer state；外部响应有大小限制，密钥不会写入错误或状态文本。Codex 错误 body 会脱敏和截断；CLI 使用固定 executable/arguments 且不经过 Shell，结束后关闭 stdin 并终止 child。详细 Codex 报告通过 `/codex-status` 通知显示。
 
 ## 配置安全边界
 
