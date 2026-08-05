@@ -40,7 +40,7 @@
 - 项目清单版本；
 - Context 占用、Token 汇总、Cache read/write/hit 和费用；
 - Session 名称、Turn、Model、Thinking level 和会话时长；
-- Codex subscription usage、MCP 连接数和 Pi 配置统计；
+- Codex 周限制剩余百分比、Token Switch 余额、MCP 连接数和 Pi 配置统计；
 - Tool 完成/运行状态与主 Agent run 活动；
 - 其他扩展通过 Pi 状态 API 发布的状态；
 - 内置布局与自定义 Footer 模板；
@@ -52,7 +52,7 @@
 - Footer 和交互设置仅在带 UI 的 TUI 会话中工作。
 - Runtime 与项目版本只检查当前工作目录顶层，不向父目录递归。
 - Git 和 Runtime 检测会执行本机命令；项目版本检测只读取清单文件。
-- Codex usage 会访问固定 ChatGPT endpoint，并可能启动本机 `codex app-server` fallback。
+- Codex usage 会访问固定 ChatGPT endpoint，并可能启动本机 `codex app-server` fallback；Token Switch 余额查询会使用 `TOKEN_SWITCH_API_KEY` 访问固定 Neolink billing endpoint。
 - 多个扩展若同时调用 `ctx.ui.setHeader()` 或 `ctx.ui.setFooter()`，会竞争同一 UI 区域。
 - 当前仓库提供包级静态检查（`npm run check`）与基于 Node 原生 TypeScript strip-types 的逻辑测试（`npm test`），但没有类型检查、Lint 或 CI 配置。
 

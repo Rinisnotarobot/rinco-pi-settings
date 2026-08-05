@@ -206,7 +206,18 @@ Token 和费用从当前 Session 的 Assistant entries 累计，不是系统级�
 2. 网络能否访问 `https://chatgpt.com/backend-api/wham/usage`；
 3. 若直连 Auth 不可用，`codex` 是否在 `PATH` 且已执行 `codex login`；
 4. 运行 `/codex-status --refresh --timeout 30` 查看脱敏后的详细错误；
-5. 切换离开 Codex Model 时状态会自动清除，这是预期行为。
+5. 切换离开 Codex Model 时状态会切换为对应 Provider 的额度，或自动清除，这是预期行为。
+
+## Token Switch 一直 checking balance 或 balance error
+
+自动查询仅在当前 Provider 为 `token-switch` 时运行。依次检查：
+
+1. 启动 Pi 的环境中是否设置了 `TOKEN_SWITCH_API_KEY`；
+2. 网络能否访问 `https://neolink.com/backend/v1/dashboard/billing/subscription`；
+3. API Key 是否有效，subscription 响应是否包含非负数值 `hard_limit_usd`，usage 响应是否包含非负数值 `total_usage`；
+4. 不要使用缺少 `/backend/` 前缀的地址，该地址会返回 SPA HTML；
+5. 修改环境变量后重启 Pi，再切换到 Token Switch Model 触发查询；
+6. 已在会话中时可直接运行 `/usage-refresh` 强制重新查询余额。
 
 ## MCP 数量没有显示
 

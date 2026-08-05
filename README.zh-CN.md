@@ -55,7 +55,7 @@
 | **成本**         | Pi 报告的累计会话成本                    |
 | **运行时**       | 自动检测：Node、Python、Go、Rust 等      |
 | **工具**         | Tool 调用、主 Agent 活动、MCP、扩展计数  |
-| **Codex**        | 订阅用量                                 |
+| **模型额度**     | Codex 周限额剩余百分比或 Token Switch 余额 |
 
 所有内容采用 Sakura 色板样式。通过模板字符串完全可定制。
 
@@ -80,7 +80,8 @@ off → minimal → low → medium → high → xhigh → max
 - **Pi** ≥ 0.80（扩展 API 支持）
 - **真彩终端**（24 位色）
 - **Nerd Font**（可选；建议用于图标，也可切换到 `ascii` 模式）
-- **Codex CLI**（可选，用于订阅用量追踪）
+- **Codex CLI**（可选，作为 Codex 用量查询 fallback）
+- **`TOKEN_SWITCH_API_KEY`**（显示 Token Switch 余额时必需）
 
 ### 从 GitHub 安装
 

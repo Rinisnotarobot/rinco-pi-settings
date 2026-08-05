@@ -41,7 +41,7 @@ describe("integrated Codex usage", () => {
 
     assert.equal(report.planType, "plus");
     assert.equal(report.resetCredits?.availableCount, 2);
-    assert.equal(formatCodexUsageStatusline(report), "codex 60% 5h 75% wk");
+    assert.equal(formatCodexUsageStatusline(report), "codex 75% wk");
   });
 
   it("selects a model-specific usage bucket", () => {
@@ -52,7 +52,56 @@ describe("integrated Codex usage", () => {
       name: "GPT-5.3 Codex Spark",
     });
 
-    assert.equal(status, "codex spark 90% 5h 80% wk");
+    assert.equal(status, "codex spark 80% wk");
+  });
+
+  it("falls back to the global weekly limit when a model bucket has no weekly window", () => {
+    const payload = samplePayload();
+    payload.additional_rate_limits[0]!.rate_limit = {
+      primary_window: { used_percent: 10, limit_window_seconds: 18_000 },
+      secondary_window: undefined,
+    };
+    const report = normalizeBackendPayload(payload, capturedAt, "pi-auth");
+    const status = formatCodexUsageStatusline(report, {
+      provider: "openai-codex",
+      id: "gpt-5.3-codex-spark",
+      name: "GPT-5.3 Codex Spark",
+    });
+
+    assert.equal(status, "codex 75% wk");
+  });
+
+  it("uses a weekly-only primary window for the statusline", () => {
+    const report = normalizeBackendPayload(
+      {
+        rate_limit: {
+          primary_window: {
+            used_percent: 42,
+            limit_window_seconds: 604_800,
+            reset_at: 1_700_100_000,
+          },
+        },
+        rate_limit_reset_credits: { available_count: 0 },
+      },
+      capturedAt,
+      "pi-auth",
+    );
+
+    assert.equal(formatCodexUsageStatusline(report), "codex 58% wk");
+  });
+
+  it("reports when a weekly limit is unavailable", () => {
+    const report = normalizeBackendPayload(
+      {
+        rate_limit: {
+          primary_window: { used_percent: 40, limit_window_seconds: 18_000 },
+        },
+      },
+      capturedAt,
+      "pi-auth",
+    );
+
+    assert.equal(formatCodexUsageStatusline(report), "codex weekly unavailable");
   });
 
   it("rejects payloads without displayable usage", () => {

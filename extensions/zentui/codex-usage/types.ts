@@ -54,7 +54,6 @@ export type NormalizedRateLimitSnapshot = {
 	limitName?: string;
 	primary?: NormalizedRateLimitWindow;
 	secondary?: NormalizedRateLimitWindow;
-	credits?: NormalizedCredits;
 };
 
 export type NormalizedRateLimitWindow = {
@@ -63,17 +62,10 @@ export type NormalizedRateLimitWindow = {
 	resetsAt?: number;
 };
 
-export type NormalizedCredits = {
-	hasCredits: boolean;
-	unlimited: boolean;
-	balance?: string;
-};
-
 export type RateLimitStatusPayload = {
 	plan_type?: unknown;
 	rate_limit?: unknown;
 	additional_rate_limits?: unknown;
-	credits?: unknown;
 	rate_limit_reset_credits?: unknown;
 };
 
@@ -96,12 +88,6 @@ export type BackendAdditionalRateLimit = {
 	limit_name?: unknown;
 	metered_feature?: unknown;
 	rate_limit?: unknown;
-};
-
-export type BackendCreditsSnapshot = {
-	has_credits?: unknown;
-	unlimited?: unknown;
-	balance?: unknown;
 };
 
 export type AppServerRateLimitResponse = {
@@ -130,7 +116,6 @@ export type AppServerRateLimitSnapshot = {
 	limitName?: unknown;
 	primary?: unknown;
 	secondary?: unknown;
-	credits?: unknown;
 	planType?: unknown;
 };
 
@@ -138,12 +123,6 @@ export type AppServerWindowSnapshot = {
 	usedPercent?: unknown;
 	windowDurationMins?: unknown;
 	resetsAt?: unknown;
-};
-
-export type AppServerCreditsSnapshot = {
-	hasCredits?: unknown;
-	unlimited?: unknown;
-	balance?: unknown;
 };
 
 export type RpcResponse = {

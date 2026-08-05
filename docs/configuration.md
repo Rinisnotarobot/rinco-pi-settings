@@ -313,9 +313,9 @@ gitMetricsAdded, gitMetricsDeleted, username, time, os
 - 运行时默认预设为 `dual-subscription-quota → left`、`codex-goal → middle`、`xai-usage → right`；
 - 建议通过 `/zentui` 设置活跃状态，避免手工拼错 key。
 
-## Codex 与外部状态说明
+## 模型额度与外部状态说明
 
-Codex 订阅查询目前使用固定行为而不是独立配置对象：仅 `openai-codex` Model 自动查询，15 秒超时、5 分钟缓存/刷新，Pi Auth 失败后允许 Codex CLI fallback。可用 `footerSegments.codexUsage` 控制内置显示，或使用 `$codex_usage` 模板变量；`/codex-status --no-statusline` 只显示报告。
+模型额度查询使用固定行为而不是独立配置对象：`openai-codex` Model 显示周限制剩余百分比，Pi Auth 失败后允许 Codex CLI fallback；`token-switch` Model 使用 `TOKEN_SWITCH_API_KEY` 查询 Neolink billing subscription 与 usage，按 `hard_limit_usd - total_usage / 100` 计算并显示可用额度。两者均为 15 秒超时、5 分钟缓存/刷新。可用 `footerSegments.codexUsage` 控制内置显示，或使用 `$codex_usage` 模板变量；`/usage-refresh` 按当前 Provider 刷新状态栏，`/codex-status --no-statusline` 只显示 Codex 报告（在 `token-switch` Model 下 `/codex-status` 不会覆盖余额状态）。
 
 MCP 专用段只解析其他扩展发布的公开 Footer status，不替换 `ctx.ui.setStatus()`。Skill 总数来自 Pi 当前发现的资源，激活数来自当前 Session branch 中展开或成功读取的 Skill；其他配置统计使用 Pi 的 Agent directory，并容错处理缺失或损坏的 settings。
 

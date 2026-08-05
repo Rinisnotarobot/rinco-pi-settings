@@ -7,7 +7,8 @@
 - 使用默认图标时建议安装 Nerd Font；没有 Nerd Font 时可切换到 `ascii` 图标模式；
 - 若需要 Git 状态，系统 `PATH` 中应有 `git`；
 - 若需要运行时版本，对应工具（如 `node`、`python`、`cargo`）应可执行；
-- Codex subscription usage 优先使用 Pi Auth；可选安装并登录 Codex CLI 作为 fallback。
+- Codex subscription usage 优先使用 Pi Auth；可选安装并登录 Codex CLI 作为 fallback；
+- 若需显示 Token Switch 余额，请在启动 Pi 前设置 `TOKEN_SWITCH_API_KEY`。
 
 可以用以下命令粗略检查终端颜色能力：
 

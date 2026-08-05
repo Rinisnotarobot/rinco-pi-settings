@@ -55,7 +55,7 @@ Fully integrated status bar that tracks:
 | **Cost**            | Accumulated session cost reported by Pi               |
 | **Runtime**         | Auto-detected: Node, Python, Go, Rust, and more       |
 | **Tools**           | Tool calls, main-agent activity, MCP, extension count |
-| **Codex**           | Subscription usage                                    |
+| **Model Limits**    | Codex weekly remaining % or Token Switch balance      |
 
 All styled in Sakura palette. Fully customizable via template strings.
 
@@ -80,7 +80,8 @@ The selector starts at the current thinking level, respects Pi's configured conf
 - **Pi** ≥ 0.80 (extension API support)
 - **Truecolor terminal** (24-bit color)
 - **Nerd Font** (optional; recommended for icons, with an `ascii` fallback)
-- **Codex CLI** (optional, for subscription usage tracking)
+- **Codex CLI** (optional fallback for Codex usage tracking)
+- **`TOKEN_SWITCH_API_KEY`** (required to show Token Switch balance)
 
 ### From GitHub
 
