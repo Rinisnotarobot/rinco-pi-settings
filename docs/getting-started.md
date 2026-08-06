@@ -93,6 +93,16 @@ Header 和 Footer 由包扩展自动注册；主题需要在 Pi 设置中选择�
 
 `format clear` 会清空自定义模板并恢复内置布局。命令还接受 `footer`、`status`、`on`、`off` 等同义表达，但推荐使用以上标准形式。
 
+## 可选 Thinking Effort 扩展
+
+`/effort` 不再由本包提供。如需 Thinking level 选择器，请安装已迁移的独立扩展 [`rinco-pi-effort`](https://github.com/Rinisnotarobot/rinco-pi-effort)：
+
+```bash
+pi install git:github.com/Rinisnotarobot/rinco-pi-effort
+```
+
+该扩展负责选择 Thinking level；本包的 Footer 仍会监听 Pi 原生事件并显示当前等级。
+
 ## 配置文件
 
 用户覆盖存储在：

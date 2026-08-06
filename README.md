@@ -61,16 +61,6 @@ All styled in Sakura palette. Fully customizable via template strings.
 
 The MCP segment reads the adapter's public `mcp` status and supports both the current `MCP: 3 servers enabled (2 connected)` format and the legacy `MCP: 2/3 servers` format. Zentui normalizes either form to `⊕ connected/enabled` (for example, `⊕ 2/3`) without intercepting or replacing the adapter's status API.
 
-### 4. Thinking Effort Selector
-
-Run `/effort` to open a centered, responsive selector for Pi's seven thinking levels:
-
-```text
-off → minimal → low → medium → high → xhigh → max
-```
-
-The selector starts at the current thinking level, respects Pi's configured confirm/cancel keybindings, and applies the result through Pi's native thinking-level API. It also warns when no model is selected or when the selected model does not support reasoning.
-
 ---
 
 ## 📦 Install
@@ -116,18 +106,15 @@ Useful direct commands:
 /zentui format clear
 ```
 
-### Thinking Effort
+### Optional Thinking Effort Selector
 
-Run `/effort` in the Pi TUI after selecting a reasoning-capable model. The overlay initializes from the current Pi thinking level and provides these controls:
+The `/effort` command is no longer bundled with this package. It has moved to the standalone [`rinco-pi-effort`](https://github.com/Rinisnotarobot/rinco-pi-effort) extension:
 
-| Key                           | Action                         |
-| ----------------------------- | ------------------------------ |
-| `Left` / `Right`              | Move one level                 |
-| `Home` / `End`                | Jump to `off` / `max`          |
-| Configured confirm or `Space` | Apply the highlighted level    |
-| Configured cancel             | Close without changing effort  |
+```bash
+pi install git:github.com/Rinisnotarobot/rinco-pi-effort
+```
 
-The selector always presents all seven Pi levels, but the effective levels depend on the active model and provider. After confirmation, a notification shows the applied level; if Pi normalizes the request, it shows both the requested and applied values. The footer's thinking segment then updates through Pi's native `thinking_level_select` event.
+The Zentui footer continues to display Pi's current thinking level when the `thinking` segment is enabled.
 
 ### Footer Templates
 

@@ -31,6 +31,8 @@ const removedPaths = [
   "extensions/zentui/selector-border.ts",
   "extensions/zentui/prototype-patch-registry.ts",
   "extensions/zentui/thinking-message.ts",
+  "extensions/zentui/effort-command.ts",
+  "extensions/zentui/effort-level.ts",
   "extensions/zentui/tool-execution.ts",
   "extensions/zentui/user-message.ts",
 ];

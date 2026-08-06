@@ -61,16 +61,6 @@
 
 MCP 状态段读取适配器公开的 `mcp` 状态，同时兼容当前格式 `MCP: 3 servers enabled (2 connected)` 与旧格式 `MCP: 2/3 servers`。Zentui 会将两者统一显示为 `⊕ 已连接数/已启用数`（例如 `⊕ 2/3`），不会拦截或替换适配器的状态 API。
 
-### 4. Thinking Effort 选择器
-
-运行 `/effort` 可打开居中且自适应宽度的选择器，在 Pi 的七档思考等级间切换：
-
-```text
-off → minimal → low → medium → high → xhigh → max
-```
-
-选择器会定位到当前思考等级，遵循 Pi 已配置的确认/取消键位，并通过 Pi 原生 Thinking Level API 应用结果。未选择模型或当前模型不支持推理时，会显示明确警告。
-
 ---
 
 ## 📦 安装
@@ -116,18 +106,15 @@ pi install git:github.com/Rinisnotarobot/rinco-pi-settings
 /zentui format clear
 ```
 
-### Thinking Effort
+### 可选 Thinking Effort 选择器
 
-在 Pi TUI 中选好支持推理的模型后运行 `/effort`。弹窗会从 Pi 当前思考等级开始，并支持以下操作：
+本包不再内置 `/effort` 命令。该功能已迁移至独立扩展 [`rinco-pi-effort`](https://github.com/Rinisnotarobot/rinco-pi-effort)：
 
-| 按键                      | 操作                         |
-| ------------------------- | ---------------------------- |
-| `Left` / `Right`          | 向前或向后移动一档           |
-| `Home` / `End`            | 跳至 `off` / `max`           |
-| 已配置的确认键或 `Space`  | 应用高亮等级                 |
-| 已配置的取消键            | 关闭弹窗且不修改思考等级     |
+```bash
+pi install git:github.com/Rinisnotarobot/rinco-pi-effort
+```
 
-选择器始终展示 Pi 的全部七档等级，但实际可用等级取决于当前模型和 Provider。确认后会提示最终应用的等级；如果 Pi 对请求进行了归一化，提示中会同时显示请求值和实际值。Footer 的 Thinking 状态段随后通过 Pi 原生 `thinking_level_select` 事件更新。
+启用 `thinking` 状态段后，Zentui Footer 仍会显示 Pi 当前的思考等级。
 
 ### Footer 模板
 
