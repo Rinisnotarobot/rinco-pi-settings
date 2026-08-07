@@ -1,10 +1,6 @@
-node_modules/
-*.tgz
 .DS_Store
 
-# Vendored upstream reference source (code is copied into extensions/zentui)
-pi-shannon-statusline/
-
-# Local agent tooling caches
+# Local tooling caches
 .codegraph/
 .claude/
+node_modules/

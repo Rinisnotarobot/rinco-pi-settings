@@ -1,237 +1,80 @@
 <div align="center">
 
-# 🌸 Rinco's Sakura CyberDeck
+# Rinco Pi
 
-**Personal Pi extension pack: Sakura Macaron theme + dynamic Zentui footer + cyberdeck header**
+**A modular collection of themes and workflow extensions for [Pi](https://pi.dev).**
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-F2A7C6?style=flat)](LICENSE)
-[![Pi ≥ 0.80](https://img.shields.io/badge/pi-%E2%89%A5%200.80-9FD3F2?style=flat)](https://github.com/earendil-works/pi)
+[![Pi collection](https://img.shields.io/badge/Pi-collection-F2A7C6?style=flat-square)](https://pi.dev) [![Packages](https://img.shields.io/badge/packages-4-9FD3F2?style=flat-square)](#projects) [![License](https://img.shields.io/badge/license-MIT-C7B8F5?style=flat-square)](LICENSE)
 
-<img src="docs/assets/screenshot-header.png" alt="Sakura Cyberdeck startup screen with gradient ASCII art and status footer" width="700" style="border-radius: 8px; margin: 20px 0;" />
+[Projects](#projects) · [Installation](#installation) · [Migration](#migration-from-rinco-pi-settings)
 
-**[Install](#-install)** · **[What's Included](#-whats-included)** · **[Docs](docs/README.md)** · **[Config](docs/configuration.md)**
-
-English | [简体中文](README.zh-CN.md)
+English · [简体中文](README.zh-CN.md)
 
 </div>
 
----
+Rinco Pi is the entry point for a set of focused Pi packages. Appearance, session telemetry, reasoning controls, and project rules live in separate repositories, so you can install only the features you need and update them independently.
 
-## 🎨 What's Included
+> [!IMPORTANT]
+> This repository is a project directory, not an installable Pi package. Install the packages below individually; do not install `rinco-pi-settings`.
 
-This is my personal integration of several upstream Pi extensions into one cohesive package:
+## Projects
 
-### 1. Sakura Macaron Theme
+| Package | What it adds | Main entry points |
+| --- | --- | --- |
+| [`rinco-pi-sakura`](https://github.com/Rinisnotarobot/rinco-pi-sakura) | Sakura Macaron theme and animated CyberDeck header | `sakura-macaron` in `/settings` |
+| [`rinco-pi-hud`](https://github.com/Rinisnotarobot/rinco-pi-hud) | Real-time project, Git, runtime, session, model usage, and cost footer | `/zentui`, `/codex-status`, `/usage-refresh` |
+| [`rinco-pi-effort`](https://github.com/Rinisnotarobot/rinco-pi-effort) | Responsive TUI selector for model thinking effort | `/effort` |
+| [`rinco-pi-rule`](https://github.com/Rinisnotarobot/rinco-pi-rule) | Stack detection and safe, deterministic ECC rule management for `AGENTS.md` | `/rules:init` |
 
-Dark truecolor theme with a pastel palette:
+Each project has its own source, releases, documentation, tests, and issue tracker.
 
-- **Sakura pink** (`#F2A7C6`) for accents and headings
-- **Sky blue** (`#9FD3F2`) for links and function names
-- **Lavender** (`#C7B8F5`) for types and variables
-- **Mint green** (`#AEE5C5`) for strings and success states
-- **Peach** (`#F6BC9A`) for inline code
-- Deep purple backgrounds (`#14111A` → `#2D2438`) for comfortable long sessions
+## Installation
 
-See the full palette in [`themes/sakura-macaron.json`](themes/sakura-macaron.json).
-
-### 2. Cyberdeck Startup Header
-
-Gradient ASCII art header that renders on session start:
-
-- Anime-style art with sakura → sky gradient
-- "SAKURA CYBERDECK" label in lavender → peach gradient
-- Auto-centers based on terminal width
-- Non-intrusive: shows once at boot, then gets out of your way
-
-### 3. Dynamic Zentui Footer
-
-Fully integrated status bar that tracks:
-
-| Category            | What It Shows                                         |
-| ------------------- | ----------------------------------------------------- |
-| **Model & Context** | Current model, tokens used/available, context %       |
-| **Session**         | Duration, turn count, thinking level, cache stats     |
-| **Git**             | Branch, commit hash, dirty/clean status, diff metrics |
-| **Cost**            | Accumulated session cost reported by Pi               |
-| **Runtime**         | Auto-detected: Node, Python, Go, Rust, and more       |
-| **Tools**           | Tool calls, main-agent activity, MCP, extension count |
-| **Model Limits**    | Codex weekly remaining % or Token Switch balance      |
-
-All styled in Sakura palette. Fully customizable via template strings.
-
-The MCP segment reads the adapter's public `mcp` status and supports both the current `MCP: 3 servers enabled (2 connected)` format and the legacy `MCP: 2/3 servers` format. Zentui normalizes either form to `⊕ connected/enabled` (for example, `⊕ 2/3`) without intercepting or replacing the adapter's status API.
-
----
-
-## 📦 Install
-
-### Requirements
-
-- **Pi** ≥ 0.80 (extension API support)
-- **Truecolor terminal** (24-bit color)
-- **Nerd Font** (optional; recommended for icons, with an `ascii` fallback)
-- **Codex CLI** (optional fallback for Codex usage tracking)
-- **`TOKEN_SWITCH_API_KEY`** (required to show Token Switch balance)
-
-### From GitHub
+Install any combination from npm:
 
 ```bash
-pi install git:github.com/Rinisnotarobot/rinco-pi-settings
+pi install npm:rinco-pi-sakura
+pi install npm:rinco-pi-hud
+pi install npm:rinco-pi-effort
+pi install npm:rinco-pi-rule
 ```
 
-### Enable the Theme
-
-The package manifest registers the header, footer, and theme automatically. After installation:
-
-1. Restart Pi.
-2. Open `/settings`.
-3. Select **sakura-macaron** as the theme.
-
-> Pi packages run with your user permissions. Review third-party extension source before installing it.
-
----
-
-## ⚙️ Configuration
-
-### Footer Settings
-
-Run `/zentui` to open the interactive settings UI. It controls footer coloring, feature switches, layout, built-in segments, and third-party extension status placement. Changes are applied immediately and saved to `~/.pi/agent/sakura-cyberdeck-zentui.json`.
-
-Useful direct commands:
-
-```text
-/zentui statusline enable
-/zentui statusline disable
-/zentui statusline toggle
-/zentui format clear
-```
-
-### Optional Thinking Effort Selector
-
-The `/effort` command is no longer bundled with this package. It has moved to the standalone [`rinco-pi-effort`](https://github.com/Rinisnotarobot/rinco-pi-effort) extension:
+Alternatively, install a package directly from GitHub:
 
 ```bash
-pi install git:github.com/Rinisnotarobot/rinco-pi-effort
+pi install git:github.com/Rinisnotarobot/rinco-pi-hud
 ```
 
-The Zentui footer continues to display Pi's current thinking level when the `thinking` segment is enabled.
+Restart Pi after installation, or run `/reload`. Use `pi list` to inspect installed packages and `pi config` to enable or disable their resources.
 
-### Footer Templates
+> [!WARNING]
+> Pi extensions run with your user permissions. Review third-party source code before installing it.
 
-Custom footer formats use `$name` or `${name}` variables:
+### Choose a setup
 
-| Variable            | Description          | Example                    |
-| ------------------- | -------------------- | -------------------------- |
-| `$model`            | Provider and model   | `openai-codex/gpt-5.3`     |
-| `$context`          | Context usage        | `35%/200k`                 |
-| `$tokens`           | Token totals         | `↑ 4.2k ↓ 1.1k`            |
-| `$cost`             | Session cost         | `$ 0.030`                  |
-| `$session_duration` | Session time         | `14m 32s`                  |
-| `$git_branch`       | Git branch           | `main`                     |
-| `$git_commit`       | Short commit and tag | `a3f7b2c`                  |
-| `$tool_counts`      | Completed tool calls | `read × 3 edit`            |
-| `$mcp`              | MCP server status    | `⊕ 2/2`                    |
+- **Appearance only** — `rinco-pi-sakura`
+- **Session dashboard** — `rinco-pi-sakura` + `rinco-pi-hud`
+- **Reasoning controls** — add `rinco-pi-effort`
+- **Project guidance** — add `rinco-pi-rule`
+- **Complete toolkit** — install all four packages
 
-`$mcp` is empty when no recognized public `mcp` status is available. In the current enabled-server format, an omitted connected count is treated as zero; optional disabled-server details are accepted but are not included in the compact footer label.
+## Migration from `rinco-pi-settings`
 
-**Example footer format:**
+The former all-in-one `rinco-pi-settings` / `pi-sakura-cyberdeck` package has been retired. Its runtime code is no longer maintained in this repository.
 
-```text
-/zentui format "$model · $context · $cost · $git_branch( $git_commit) · $session_duration"
+| Previous component | New home |
+| --- | --- |
+| Sakura Macaron theme and CyberDeck header | [`rinco-pi-sakura`](https://github.com/Rinisnotarobot/rinco-pi-sakura) |
+| Zentui footer, telemetry, Git/runtime state, and usage indicators | [`rinco-pi-hud`](https://github.com/Rinisnotarobot/rinco-pi-hud) |
+| Thinking effort selector | [`rinco-pi-effort`](https://github.com/Rinisnotarobot/rinco-pi-effort) |
+| Project stack rules | [`rinco-pi-rule`](https://github.com/Rinisnotarobot/rinco-pi-rule) |
+
+Remove the legacy Git package, then install the replacements you want:
+
+```bash
+pi remove git:github.com/Rinisnotarobot/rinco-pi-settings
+pi install npm:rinco-pi-sakura
+pi install npm:rinco-pi-hud
 ```
 
-To restore the built-in three-line layout, run `/zentui format clear`.
-
-Full reference: [Footer Guide](docs/footer.md) · [Configuration Docs](docs/configuration.md)
-
----
-
-## 📚 Documentation
-
-| Doc                                            | What's Inside                            |
-| ---------------------------------------------- | ---------------------------------------- |
-| **[Getting Started](docs/getting-started.md)** | Installation, first steps, common setups |
-| **[Footer Guide](docs/footer.md)**             | Template variables, formatting, examples |
-| **[Configuration](docs/configuration.md)**     | All settings, defaults, overrides        |
-| **[Architecture](docs/architecture.md)**       | How it works under the hood              |
-| **[Theme & Header](docs/theme-and-header.md)** | Color palette, header customization      |
-| **[Development](docs/development.md)**         | Contributing, building, releasing        |
-| **[Troubleshooting](docs/troubleshooting.md)** | Common issues, fixes, FAQs               |
-
-Detailed Chinese documentation: [**docs/README.md**](docs/README.md)
-
----
-
-## 🏗️ How It Works
-
-```mermaid
-graph LR
-  A[Pi Core] --> B[Sakura Theme JSON]
-  A --> C[Header Extension]
-  A --> D[Zentui Footer]
-  D --> E[Model/Context]
-  D --> F[Git State]
-  D --> G[Session Telemetry]
-  D --> H[Runtime Detection]
-  D --> I[MCP/Tools]
-```
-
-**Design principles:**
-
-- Uses only Pi and TUI APIs (no external dependencies)
-- Non-invasive: doesn't replace editor, keymap, or core UX
-- Composable: works alongside extensions that do not replace the same header or footer surfaces
-- Async updates: no blocking on I/O
-
----
-
-## 🛠️ Development
-
-This is a personal package, but PRs are welcome for:
-
-- Footer metrics or layout improvements
-- Theme palette tweaks
-- Bug fixes
-
-**Before submitting:**
-
-1. `npm test` — tests must pass
-2. `npm run check` — validate package structure and source invariants
-3. Update docs if adding features
-
-See [Development Guide](docs/development.md).
-
----
-
-## 🙏 Attribution
-
-This package integrates and adapts work from:
-
-- [`beautifulrem/pi-sakura-cyberdeck`](https://github.com/beautifulrem/pi-sakura-cyberdeck)
-- [`lmilojevicc/pi-zentui`](https://github.com/lmilojevicc/pi-zentui)
-- [`RealAlexandreAI/pi-shannon-statusline`](https://github.com/RealAlexandreAI/pi-shannon-statusline)
-- [`narumiruna/pi-extensions` (`pi-codex-usage`)](https://github.com/narumiruna/pi-extensions)
-
-All upstream projects are MIT licensed. Original notices preserved in [`NOTICE`](NOTICE) and [`licenses/`](licenses).
-
-Thank you to every original author.
-
----
-
-## 💬 Troubleshooting
-
-| Issue               | Fix                                                 |
-| ------------------- | --------------------------------------------------- |
-| Icons show as `?`   | Install a Nerd Font and configure your terminal     |
-| Colors look wrong   | Enable truecolor in your terminal settings          |
-| Footer not updating | Check Pi version (`pi --version`) — requires ≥ 0.80 |
-
-Full troubleshooting guide: [docs/troubleshooting.md](docs/troubleshooting.md)
-
-**Issues?** [github.com/Rinisnotarobot/rinco-pi-settings/issues](https://github.com/Rinisnotarobot/rinco-pi-settings/issues)
-
----
-
-## 📝 License
-
-[MIT](LICENSE)
+Configuration and usage details now belong to each package's README. Report package-specific issues in the corresponding repository.
